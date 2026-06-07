@@ -1516,40 +1516,44 @@ function renderRosterList(){
 
     items.forEach(p=>{
       const row=document.createElement('div');
-      row.style.cssText='display:flex;gap:5px;align-items:center;margin-bottom:4px;background:#1d2a22;padding:6px 8px;border-radius:6px';
+      row.style.cssText='display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:6px;background:#1d2a22;padding:10px;border-radius:8px';
 
-      // Nom (éditable)
+      // Nom (éditable) — prend toute la largeur
       const nameInput=document.createElement('input');
       nameInput.type='text';nameInput.value=p.name||'';
-      nameInput.placeholder='Prénom';
-      nameInput.style.cssText='flex:1;padding:6px;border:1px solid #3a5240;background:#0f1c14;color:#fff;border-radius:4px;font-size:13px;min-width:0';
+      nameInput.placeholder='Prénom du joueur';
+      nameInput.style.cssText='flex:1 1 100%;padding:10px 12px;border:2px solid #3a5240;background:#0f1c14;color:#fff;border-radius:6px;font-size:16px;font-weight:bold;box-sizing:border-box';
       nameInput.oninput=()=>{
         const all=getAllPlayers();
         all[p._idx].name=nameInput.value;
         saveAllPlayers(all);
       };
 
+      // Ligne du bas : sélecteur d'équipe + supprimer
+      const bottomRow=document.createElement('div');
+      bottomRow.style.cssText='display:flex;gap:5px;align-items:center;width:100%';
+
       // Sélecteur d'équipe
       const teamSel=document.createElement('select');
-      teamSel.style.cssText='padding:5px 4px;background:#4a1a6b;color:#fff;border:1px solid #7e57c2;border-radius:4px;font-size:11px;font-weight:bold;flex-shrink:0;cursor:pointer';
+      teamSel.style.cssText='flex:1;padding:8px;background:#4a1a6b;color:#fff;border:2px solid #7e57c2;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer';
       TEAMS_LIST.forEach(t=>{
         const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.name;
         teamSel.appendChild(opt);
       });
-      const optNone=document.createElement('option');optNone.value='none';optNone.textContent='—';
+      const optNone=document.createElement('option');optNone.value='none';optNone.textContent='Non assigné';
       teamSel.appendChild(optNone);
       teamSel.value=p.team||'none';
       teamSel.onchange=()=>{
         const all=getAllPlayers();
         all[p._idx].team=teamSel.value==='none'?'':teamSel.value;
         saveAllPlayers(all);
-        renderRosterList(); // re-render pour le déplacer dans la bonne section
+        renderRosterList();
       };
 
       // Bouton supprimer
       const delBtn=document.createElement('button');
       delBtn.className='tool';delBtn.textContent='🗑';
-      delBtn.style.cssText='background:#5a2222;padding:5px 8px;flex-shrink:0';
+      delBtn.style.cssText='background:#5a2222;padding:8px 12px;flex-shrink:0;font-size:16px';
       delBtn.onclick=()=>{
         const all=getAllPlayers();
         all.splice(p._idx,1);
@@ -1557,9 +1561,10 @@ function renderRosterList(){
         renderRosterList();
       };
 
+      bottomRow.appendChild(teamSel);
+      bottomRow.appendChild(delBtn);
       row.appendChild(nameInput);
-      row.appendChild(teamSel);
-      row.appendChild(delBtn);
+      row.appendChild(bottomRow);
       list.appendChild(row);
     });
   });
