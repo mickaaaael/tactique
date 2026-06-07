@@ -1,0 +1,3224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f1c14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tactique Foot">
+<meta name="description" content="Application tactique et entraînement pour le foot à 8 — exercices animés, séances, formations">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<title>Tactique Foot à 8</title>
+<style>
+  :root{
+    --grass-dark:#2e7d32;
+    --grass-light:#43a047;
+    --line:rgba(255,255,255,0.85);
+    --panel:#0f1c14;
+    --panel-2:#16291c;
+    --accent:#ffd54f;
+    --home:#1565c0;
+    --away:#c62828;
+    --txt:#eef5ee;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;font-family:'Trebuchet MS','Segoe UI',sans-serif;background:#0a130d;color:var(--txt);}
+  #app{display:flex;flex-direction:column;height:100%;}
+
+  /* ---- Barre d'outils ---- */
+  #toolbar{
+    display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+    padding:8px 10px;background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border-bottom:2px solid #000;z-index:20;
+  }
+  #toolbar .title{font-weight:bold;font-size:16px;color:var(--accent);margin-right:8px;letter-spacing:.5px;}
+  button.tool{
+    border:none;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:bold;
+    background:#243a2a;color:var(--txt);cursor:pointer;display:flex;align-items:center;gap:5px;
+    transition:transform .08s, background .15s;
+  }
+  button.tool:active{transform:scale(.94);}
+  button.tool.active{background:var(--accent);color:#1a1a1a;box-shadow:0 0 0 2px #fff3;}
+  button.tool.active *{color:#1a1a1a;}
+  .frameBtn.active{background:var(--accent);color:#1a1a1a;}
+  .frameBtn.active *{color:#1a1a1a;}
+
+  /* ----- Boutons groupés avec menu déroulant ----- */
+  .toolGroup{position:relative;flex-shrink:0;}
+  .toolGroup .caret{font-size:10px;opacity:.7;margin-left:1px;}
+  .toolPopup{
+    display:none;position:fixed;
+    background:var(--panel-2);border:2px solid var(--accent);border-radius:8px;
+    padding:6px;box-shadow:0 4px 20px rgba(0,0,0,.7);
+    z-index:1000;flex-direction:column;gap:4px;min-width:180px;
+  }
+  .toolPopup.open{display:flex;}
+  .toolPopup button.tool{width:100%;justify-content:flex-start;}
+  .toolPopup button.tool .label{display:inline !important;}
+  @media (max-width:760px){
+    .toolPopup{min-width:160px;}
+  }
+
+  /* ----- Select de filtre catégorie ----- */
+  #catFilter option{background:#2a1840;color:#fff;padding:8px;font-weight:bold;}
+  #catFilter:hover{background:#5d3a8a;}
+  #catFilter:focus{outline:none;border-color:#9575cd;}
+
+  /* ----- Adaptation mobile ----- */
+  @media (max-width:760px){
+    #toolbar{padding:5px 6px;gap:4px;flex-wrap:nowrap;overflow-x:auto;}
+    #toolbar .title{display:none;}
+    button.tool{padding:7px 8px;font-size:12px;gap:3px;border-radius:6px;flex-shrink:0;}
+    button.tool .label{display:none;}        /* on cache le texte, on garde l'icône */
+    button.tool .ico{font-size:18px;}
+    .sep{height:22px;flex-shrink:0;}
+    .spacer{display:none;}
+    #bottom{padding:5px 6px;gap:4px;flex-wrap:nowrap;overflow-x:auto;}
+    .legend{font-size:11px;flex-shrink:0;}
+    .dot{width:11px;height:11px;border-width:1px;}
+    .hint{display:none;}
+    .frameBtn{min-width:30px;height:28px;font-size:13px;flex-shrink:0;}
+    #frames{flex-shrink:0;}
+  }
+
+  /* ----- Mode plein écran (terrain seul) ----- */
+  body.fullscreen #toolbar,
+  body.fullscreen #bottom{display:none;}
+  body.fullscreen.bars-visible #toolbar,
+  body.fullscreen.bars-visible #bottom{display:flex;}
+  body.fullscreen #fsToggle{display:flex;}
+  #fsToggle{
+    display:none;position:fixed;top:8px;right:8px;z-index:30;
+    width:48px;height:48px;border-radius:50%;border:none;
+    background:rgba(0,0,0,.7);color:#fff;font-size:24px;cursor:pointer;
+    align-items:center;justify-content:center;box-shadow:0 2px 10px #000a;
+    transition:background .15s;
+  }
+  body.fullscreen.bars-visible #fsToggle{background:var(--accent);color:#1a1a1a;}
+  #fsToggle:active{transform:scale(.93);}
+
+  /* ----- Légende d'animation ----- */
+  #animCaption{
+    position:absolute;top:14px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.82);color:#fff;
+    padding:10px 18px;border-radius:10px;
+    font-weight:bold;font-size:15px;text-align:center;
+    z-index:5;pointer-events:none;display:none;
+    box-shadow:0 3px 12px rgba(0,0,0,.5);
+    border:2px solid var(--accent);max-width:86%;white-space:nowrap;
+  }
+  .captionStep{font-size:11px;opacity:.7;display:block;margin-top:3px;font-weight:normal;}
+  @media (max-width:760px){
+    #animCaption{font-size:13px;padding:8px 14px;top:8px;}
+  }
+
+  /* ----- Effet BUT ! ----- */
+  #goalEffect{
+    display:none;position:absolute;inset:0;
+    pointer-events:none;z-index:8;
+    align-items:center;justify-content:center;overflow:hidden;
+  }
+  #goalEffect.active{display:flex;}
+  .goalText{
+    font-family:Impact,'Arial Black',sans-serif;
+    font-size:90px;font-weight:900;letter-spacing:6px;
+    color:#ffd54f;
+    text-shadow:0 0 14px #000, 6px 6px 0 #c62828, -2px -2px 0 #000;
+    animation:goalPop 1.5s cubic-bezier(.18,.89,.32,1.28);
+    transform-origin:center;
+  }
+  @keyframes goalPop{
+    0%   {transform:scale(0) rotate(-30deg);opacity:0;}
+    25%  {transform:scale(1.4) rotate(8deg);opacity:1;}
+    45%  {transform:scale(1) rotate(-3deg);}
+    65%  {transform:scale(1.1) rotate(2deg);}
+    80%  {transform:scale(1) rotate(0);}
+    100% {transform:scale(1) rotate(0);opacity:1;}
+  }
+  .confetti{position:absolute;inset:0;pointer-events:none;}
+  .confetti span{
+    position:absolute;top:-30px;font-size:24px;
+    animation:confettiFall 2s linear forwards;
+  }
+  @keyframes confettiFall{
+    0%   {transform:translateY(0) rotate(0deg);opacity:1;}
+    100% {transform:translateY(120vh) rotate(720deg);opacity:.4;}
+  }
+  @media (max-width:760px){
+    .goalText{font-size:60px;letter-spacing:3px;}
+  }
+  button.tool .ico{font-size:15px;}
+  .spacer{flex:1;}
+  .sep{width:1px;height:26px;background:#3a5240;margin:0 2px;}
+
+  /* ---- Terrain ---- */
+  #stage{flex:1;position:relative;overflow:hidden;background:#0a130d;display:flex;align-items:center;justify-content:center;}
+  #pitchWrap{position:relative;touch-action:none;}
+  svg#pitch{display:block;background:
+    repeating-linear-gradient(90deg,var(--grass-dark) 0 9.09%,var(--grass-light) 9.09% 18.18%);
+    border-radius:6px;box-shadow:0 8px 30px #000a;}
+  .marker{cursor:grab;}
+  .player circle{stroke:#000;stroke-width:2;}
+  .player text{font-weight:bold;text-anchor:middle;dominant-baseline:central;pointer-events:none;fill:#fff;}
+  .ball{cursor:grab;}
+  .arrow-head{}
+  
+  /* ---- Panneau bas ---- */
+  #bottom{display:flex;gap:6px;align-items:center;padding:8px 10px;background:var(--panel);border-top:2px solid #000;flex-wrap:wrap;}
+  .legend{display:flex;align-items:center;gap:5px;font-size:12px;}
+  .dot{width:14px;height:14px;border-radius:50%;border:2px solid #000;}
+  #frames{display:flex;gap:5px;align-items:center;flex:1;overflow-x:auto;padding:2px;}
+  .frameBtn{min-width:34px;height:30px;border-radius:6px;border:none;background:#243a2a;color:#fff;font-weight:bold;cursor:pointer;}
+  .play{background:#2e7d32;}
+  .hint{font-size:11px;color:#9fc7a8;padding:4px 8px;}
+  .modal-bg{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:50;}
+  .modal{background:var(--panel-2);padding:18px;border-radius:12px;max-width:90%;width:340px;}
+  .modal h3{margin:0 0 10px;color:var(--accent);}
+  .modal p{font-size:13px;line-height:1.5;}
+  .modal button{margin-top:10px;width:100%;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#1a1a1a;font-weight:bold;cursor:pointer;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <span class="title">⚽ Tactique Foot à 8</span>
+    <select id="teamSelect" title="Changer d'équipe" style="padding:6px 8px;background:#4a1a6b;color:#fff;border:2px solid #9c27b0;border-radius:6px;font-size:12px;font-weight:bold;cursor:pointer;flex-shrink:0;-webkit-appearance:none;appearance:none;background-image:url('data:image/svg+xml;utf8,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;12&quot; height=&quot;12&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;white&quot;><path d=&quot;M7 10l5 5 5-5z&quot;/></svg>');background-repeat:no-repeat;background-position:right 6px center;padding-right:22px"></select>
+    <button class="tool active" id="modeMove"><span class="ico">✋</span><span class="label">Déplacer</span></button>
+
+    <div class="toolGroup">
+      <button class="tool" id="tactiqueBtn"><span class="ico">🎯</span><span class="label">Tactique</span><span class="caret">▾</span></button>
+      <div class="toolPopup" id="tactiquePopup">
+        <button class="tool" id="modeArrow"><span class="ico">➤</span><span class="label">Flèche</span></button>
+        <button class="tool" id="modeRun"><span class="ico">⇢</span><span class="label">Course</span></button>
+        <button class="tool" id="modePass"><span class="ico">⤳</span><span class="label">Passe</span></button>
+        <button class="tool" id="modeErase"><span class="ico">🧽</span><span class="label">Gomme</span></button>
+        <button class="tool" id="modeAway"><span class="ico">🔴</span><span class="label">Adversaire</span></button>
+        <button class="tool" id="gearBtn"><span class="ico">🛒</span><span class="label">Matériel</span></button>
+      </div>
+    </div>
+
+    <div class="toolGroup">
+      <button class="tool" id="seanceBtn"><span class="ico">📚</span><span class="label">Séance</span><span class="caret">▾</span></button>
+      <div class="toolPopup" id="seancePopup">
+        <button class="tool" id="sessionBtn"><span class="ico">📚</span><span class="label">Mes séances</span></button>
+        <button class="tool" id="trainBtn"><span class="ico">🏃</span><span class="label">Entraînement</span></button>
+        <button class="tool" id="formationBtn"><span class="ico">📋</span><span class="label">Formation</span></button>
+        <button class="tool" id="rosterBtn"><span class="ico">👥</span><span class="label">Mon équipe</span></button>
+      </div>
+    </div>
+
+    <span class="sep"></span>
+    <button class="tool" id="fsBtn"><span class="ico">⛶</span><span class="label">Plein écran</span></button>
+    <button class="tool" id="boardBtn"><span class="ico">🎨</span><span class="label">Style</span></button>
+    <button class="tool" id="exportImgBtn"><span class="ico">📷</span><span class="label">Image</span></button>
+    <span class="spacer"></span>
+    <button class="tool" id="clearBtn"><span class="ico">🆕</span><span class="label">Vider</span></button>
+    <button class="tool" id="helpBtn"><span class="ico">❓</span><span class="label">Aide</span></button>
+  </div>
+
+  <button id="fsToggle" title="Afficher / masquer les boutons">☰</button>
+
+  <div id="stage">
+    <div id="pitchWrap">
+      <svg id="pitch" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="animCaption"></div>
+    <div id="goalEffect">
+      <div class="goalText">BUT !</div>
+      <div class="confetti" id="confetti"></div>
+    </div>
+  </div>
+
+  <div id="bottom">
+    <div class="legend"><span class="dot" style="background:var(--home)"></span>Mon équipe</div>
+    <div class="legend"><span class="dot" style="background:var(--away)"></span>Adversaires</div>
+    <div class="legend"><span class="dot" style="background:#fff"></span>Ballon</div>
+    <span class="sep"></span>
+    <span class="hint">Étapes :</span>
+    <div id="frames"></div>
+    <button class="tool" id="addFrame">➕ Étape</button>
+    <button class="tool" id="delFrame">🗑 Étape</button>
+    <button class="tool" id="noteFrame">💬 Note</button>
+    <button class="tool play" id="playBtn">▶ Animer</button>
+    <button class="tool" id="speedBtn" title="Vitesse de l'animation"><span class="ico">⚡</span><span class="label">Normale</span></button>
+    <button class="tool" id="soundBtn" title="Activer / couper le son"><span class="ico">🔊</span></button>
+    <span class="sep"></span>
+    <button class="tool" id="saveBtn"><span class="ico">💾</span>Enregistrer</button>
+    <button class="tool" id="loadBtn"><span class="ico">📂</span>Ouvrir</button>
+  </div>
+</div>
+
+<!-- Modale formations -->
+<div class="modal-bg" id="formModal">
+  <div class="modal">
+    <h3>Choisir une formation (à 8)</h3>
+    <button class="tool" data-form="3-3-1" style="width:100%;margin-bottom:6px;justify-content:center">3 - 3 - 1 (équilibré)</button>
+    <button class="tool" data-form="3-1-2-1" style="width:100%;margin-bottom:6px;justify-content:center">3 - 1 - 2 - 1 (losange)</button>
+    <button class="tool" data-form="2-3-2" style="width:100%;margin-bottom:6px;justify-content:center">2 - 3 - 2 (offensif)</button>
+    <button class="tool" data-form="3-2-2" style="width:100%;margin-bottom:6px;justify-content:center">3 - 2 - 2</button>
+    <button class="tool" data-form="2-1-3-1" style="width:100%;margin-bottom:6px;justify-content:center">2 - 1 - 3 - 1</button>
+    <button id="closeForm">Fermer</button>
+  </div>
+</div>
+
+<!-- Modale Séances -->
+<div class="modal-bg" id="sessionModal">
+  <div class="modal" style="width:440px;max-width:95vw">
+    <h3>📚 Mes séances</h3>
+    <p style="font-size:12px;margin:-4px 0 8px;opacity:.8">Enchaîne plusieurs exercices avec leurs durées pour une séance complète.</p>
+    <!-- Liste des séances enregistrées -->
+    <div id="sessionList" style="max-height:140px;overflow-y:auto;margin-bottom:10px;border-bottom:1px solid #3a5240;padding-bottom:8px"></div>
+    <!-- Éditeur de séance en cours -->
+    <div id="sessionEditor" style="display:none">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input type="text" id="sessionName" placeholder="Nom de la séance" style="flex:1;padding:7px;background:#0f1c14;color:#fff;border:1px solid #3a5240;border-radius:4px;font-size:13px">
+      </div>
+      <div style="font-size:11px;opacity:.7;margin-bottom:4px">Ateliers de la séance :</div>
+      <div id="sessionStepsList" style="max-height:200px;overflow-y:auto;margin-bottom:8px"></div>
+      <button class="tool" id="sessionAddStep" style="width:100%;justify-content:center;margin-bottom:6px">➕ Ajouter un atelier</button>
+      <div id="sessionTotal" style="text-align:center;font-size:13px;font-weight:bold;color:var(--accent);margin:8px 0"></div>
+      <div style="display:flex;gap:6px">
+        <button class="tool" id="sessionPlay" style="flex:1;justify-content:center;background:#2e7d32">▶ Dérouler la séance</button>
+        <button class="tool" id="sessionSave" style="flex:1;justify-content:center">💾 Enregistrer</button>
+      </div>
+    </div>
+    <button class="tool" id="sessionNew" style="width:100%;justify-content:center;background:#2e7d32;margin-top:6px">➕ Nouvelle séance</button>
+    <button id="closeSession" style="margin-top:8px">Fermer</button>
+  </div>
+</div>
+
+<!-- Modale lecture d'atelier de séance (panneau flottant durant le déroulement) -->
+<div id="sessionRunner" style="display:none;position:fixed;top:60px;right:10px;width:260px;background:rgba(0,0,0,.88);border:2px solid var(--accent);border-radius:10px;padding:10px;z-index:30;color:#fff;font-size:13px;box-shadow:0 4px 20px #000a">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <span style="font-weight:bold;color:var(--accent);font-size:14px">📚 Séance en cours</span>
+    <button id="sessionRunnerClose" style="background:transparent;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1">×</button>
+  </div>
+  <div id="sessionRunnerStep" style="font-size:12px;margin-bottom:6px;opacity:.8"></div>
+  <div id="sessionRunnerName" style="font-weight:bold;font-size:15px;margin-bottom:8px"></div>
+  <div id="sessionRunnerTime" style="font-size:24px;font-weight:bold;color:var(--accent);text-align:center;font-variant-numeric:tabular-nums;margin:6px 0"></div>
+  <div style="display:flex;gap:5px;margin-top:6px">
+    <button class="tool" id="sessionPrev" style="flex:1;justify-content:center;font-size:12px;padding:6px">◀ Préc.</button>
+    <button class="tool" id="sessionPauseStep" style="flex:1;justify-content:center;font-size:12px;padding:6px">⏸</button>
+    <button class="tool" id="sessionNext" style="flex:1;justify-content:center;font-size:12px;padding:6px;background:#2e7d32">Suiv. ▶</button>
+  </div>
+</div>
+
+<!-- Modale Mon équipe (gestion liste de joueurs) -->
+<div class="modal-bg" id="rosterModal">
+  <div class="modal" style="width:380px;max-width:95vw">
+    <h3>👥 Mon équipe</h3>
+    <p style="font-size:12px;margin:-4px 0 10px;opacity:.8">Saisis le prénom de chaque joueur. Tu pourras ensuite afficher les prénoms à la place des numéros sur le terrain.</p>
+    <div id="rosterList" style="max-height:320px;overflow-y:auto;margin-bottom:10px"></div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button class="tool" id="rosterAdd" style="flex:1;justify-content:center">➕ Ajouter un joueur</button>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="tool" id="applyRoster" style="flex:1;justify-content:center;background:#2e7d32">Afficher les prénoms</button>
+      <button class="tool" id="resetRoster" style="flex:1;justify-content:center">Remettre les numéros</button>
+    </div>
+    <button id="closeRoster" style="margin-top:8px">Fermer</button>
+  </div>
+</div>
+
+<!-- Modale matériel -->
+<div class="modal-bg" id="gearModal">
+  <div class="modal">
+    <h3>Poser du matériel</h3>
+    <p style="font-size:12px;margin-top:0">Choisis un objet, puis touche le terrain pour le poser. La 🧽 Gomme l'efface.</p>
+    <div id="gearGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;"></div>
+    <button id="closeGear">Fermer</button>
+  </div>
+</div>
+
+<!-- Modale création/édition exercice perso -->
+<div class="modal-bg" id="createDrillModal">
+  <div class="modal" style="width:440px;max-width:95vw">
+    <h3 id="createDrillTitle">➕ Créer un exercice</h3>
+    <div style="max-height:60vh;overflow-y:auto;padding-right:6px">
+      <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;margin-bottom:3px">Nom de l'exercice</label>
+      <input type="text" id="cdName" placeholder="ex : Toro à 6 contre 2" style="width:100%;padding:8px;background:#0f1c14;color:#fff;border:1px solid #3a5240;border-radius:4px;font-size:13px;margin-bottom:8px;box-sizing:border-box">
+
+      <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;margin-bottom:3px">Catégorie</label>
+      <select id="cdCategory" style="width:100%;padding:8px;background:#4a2c6b;color:#fff;border:2px solid #7e57c2;border-radius:6px;font-size:13px;margin-bottom:8px;-webkit-appearance:none;appearance:none;background-image:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"white\"><path d=\"M7 10l5 5 5-5z\"/></svg>');background-repeat:no-repeat;background-position:right 10px center;padding-right:32px"></select>
+
+      <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;margin-bottom:3px">Niveau</label>
+      <div id="cdLevel" style="display:flex;gap:6px;margin-bottom:10px"></div>
+
+      <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;margin-bottom:3px">Tranche d'âge</label>
+      <input type="text" id="cdAge" placeholder="ex : U9 à U11" style="width:100%;padding:8px;background:#0f1c14;color:#fff;border:1px solid #3a5240;border-radius:4px;font-size:13px;margin-bottom:8px;box-sizing:border-box">
+
+      <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;margin-bottom:3px">Consignes (une par ligne)</label>
+      <textarea id="cdConsignes" placeholder="Description du déroulement, une étape par ligne." rows="5" style="width:100%;padding:8px;background:#0f1c14;color:#fff;border:1px solid #3a5240;border-radius:4px;font-size:13px;margin-bottom:8px;box-sizing:border-box;resize:vertical"></textarea>
+
+      <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;margin-bottom:3px">Variantes / adaptations</label>
+      <input type="text" id="cdVariantes" placeholder="ex : pied faible • plus rapide • avec défenseur" style="width:100%;padding:8px;background:#0f1c14;color:#fff;border:1px solid #3a5240;border-radius:4px;font-size:13px;margin-bottom:10px;box-sizing:border-box">
+
+      <div style="background:#1d2a22;padding:9px;border-radius:6px;margin-bottom:10px">
+        <label style="font-size:13px;display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+          <input type="checkbox" id="cdCaptureGear" checked style="margin-top:3px">
+          <span><b>Capturer le matériel posé</b><br><span style="font-size:11px;opacity:.7">Plots, cerceaux, échelles… seront enregistrés à leur position actuelle.</span></span>
+        </label>
+        <label style="font-size:13px;display:flex;gap:8px;align-items:flex-start;cursor:pointer;margin-top:6px">
+          <input type="checkbox" id="cdCaptureAnim" style="margin-top:3px">
+          <span><b>Capturer les étapes (animation)</b><br><span style="font-size:11px;opacity:.7">Si tu as créé plusieurs étapes, elles deviendront l'animation de l'exercice.</span></span>
+        </label>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button class="tool" id="cdSave" style="flex:1;justify-content:center;background:#2e7d32;font-size:14px;padding:10px">💾 Enregistrer</button>
+      <button class="tool" id="cdDelete" style="flex:0 0 auto;background:#5a2222;display:none">🗑</button>
+    </div>
+    <button id="closeCreateDrill" style="margin-top:8px">Annuler</button>
+  </div>
+</div>
+
+<!-- Modale entraînement -->
+<div class="modal-bg" id="trainModal">
+  <div class="modal" style="width:420px;max-width:95vw">
+    <h3>🏃 Exercices d'entraînement</h3>
+    <button class="tool" id="createDrillBtn" style="width:100%;justify-content:center;background:#2e7d32;margin-bottom:8px;padding:9px"><span class="ico">➕</span><span>Créer mon exercice</span></button>
+    <div style="font-size:11px;opacity:.7;margin:-6px 0 6px">Filtre par catégorie et niveau :</div>
+    <select id="catFilter" style="width:100%;padding:10px 12px;background:#4a2c6b;color:#fff;border:2px solid #7e57c2;border-radius:8px;font-size:14px;font-weight:bold;margin-bottom:6px;cursor:pointer;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"white\"><path d=\"M7 10l5 5 5-5z\"/></svg>');background-repeat:no-repeat;background-position:right 10px center;padding-right:32px"></select>
+    <div id="lvlFilter" style="display:flex;gap:4px;margin-bottom:8px;"></div>
+    <div id="drillList" style="max-height:320px;overflow-y:auto;margin-bottom:8px;"></div>
+    <button id="closeTrain">Fermer</button>
+  </div>
+</div>
+
+<!-- Modale consignes exercice -->
+<div class="modal-bg" id="drillModal">
+  <div class="modal" style="width:380px">
+    <h3 id="drillTitle"></h3>
+    <div id="drillBody" style="font-size:13px;line-height:1.55;max-height:340px;overflow-y:auto"></div>
+    <button id="closeDrill">Fermer</button>
+  </div>
+</div>
+
+<!-- Modale enregistrements -->
+<div class="modal-bg" id="loadModal">
+  <div class="modal">
+    <h3>Mes enregistrements</h3>
+    <div id="saveList" style="max-height:240px;overflow-y:auto;margin-bottom:8px;"></div>
+    <button class="tool" id="exportBtn" style="width:100%;justify-content:center;margin-bottom:6px;background:#2e7d32">⬇ Exporter en fichier</button>
+    <button class="tool" id="importBtn" style="width:100%;justify-content:center;margin-bottom:6px;">⬆ Importer un fichier</button>
+    <input type="file" id="importFile" accept=".json" style="display:none">
+    <button id="closeLoad">Fermer</button>
+  </div>
+</div>
+
+<!-- Modale aide -->
+<div class="modal-bg" id="helpModal">
+  <div class="modal" style="max-width:95vw;width:440px">
+    <h3>Mode d'emploi</h3>
+    <div style="max-height:60vh;overflow-y:auto;padding-right:6px">
+    <p style="font-size:13px;line-height:1.55">
+      <b style="color:var(--accent)">— Outils de base —</b><br><br>
+      <b>✋ Déplacer</b> : pose le doigt sur un joueur ou le ballon et glisse-le.<br>
+      <b>➤ Flèche / ⇢ Course / ⤳ Passe</b> : touche un point puis glisse pour tracer une flèche.<br>
+      <b>🧽 Gomme</b> : touche une flèche, un adversaire ou un objet pour l'effacer.<br>
+      <b>🔴 Adversaire</b> : touche le terrain pour poser un adversaire.<br>
+      <b>🛒 Matériel</b> : plots, cerceaux, échelles, mini-buts, zones (ajustables par les coins)…<br>
+      <b>📋 Formation</b> : place automatiquement les 8 joueurs (5 systèmes).<br><br>
+
+      <b style="color:var(--accent)">— Entraînements et séances —</b><br><br>
+      <b>🏃 Entraînement</b> : 48 exercices animés, classés par catégorie (échauffement, conduite, passe, tir, défense, attaque, coups de pied arrêtés, collectif, gardien) et par niveau (🟢 facile / 🟡 moyen / 🔴 difficile).<br>
+      <b>📚 Séance</b> : empile plusieurs ateliers pour une séance complète avec durée. Tu peux la sauvegarder, puis la dérouler avec un panneau flottant qui compte le temps et passe automatiquement à l'atelier suivant.<br><br>
+
+      <b style="color:var(--accent)">— Animation —</b><br><br>
+      Ajoute des <b>étapes</b> (➕), déplace les joueurs et adversaires dans chaque étape, puis <b>▶ Animer</b>. L'appli détecte automatiquement les actions (passe, tir, course) et affiche une légende. Bouton <b>vitesse</b> pour ralentir (🐢 → 🏃).<br>
+      <b>💬 Note</b> : ajoute un commentaire personnalisé à une étape (« Lucas passe à Théo »). Il s'affiche pendant l'animation à la place de la légende automatique.<br><br>
+
+      <b style="color:var(--accent)">— Sauvegarde et partage —</b><br><br>
+      <b>💾 Enregistrer / 📂 Ouvrir</b> : sauvegarde tes situations (formations ou animations) dans le navigateur. Export en fichier pour partager.<br>
+      <b>📷 Image</b> : exporte le terrain en PNG haute résolution (idéal pour envoyer par WhatsApp).<br>
+      <b>🎨 Style</b> : cycle entre pelouse rayée, vert uni, tableau noir et tableau bleu.<br><br>
+
+      <b style="color:var(--accent)">— Outils annexes —</b><br><br>
+      <b>👥 Mon équipe</b> : saisis tes joueurs et affiche leurs prénoms à la place des numéros.<br><br>
+
+      <b style="color:var(--accent)">— Affichage —</b><br><br>
+      <b>⛶ Plein écran</b> : masque les barres pour utiliser tout l'écran.<br>
+      <b>🆕 Vider</b> : efface tout le terrain pour repartir d'une page blanche.
+    </p>
+    </div>
+    <button id="closeHelp">C'est compris !</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURATION FIREBASE — À REMPLIR AVEC VOTRE PROJET
+   ============================================================
+   Pour activer le partage entre coachs :
+   1. Allez sur https://console.firebase.google.com
+   2. Créez un projet (gratuit)
+   3. Activez Firestore Database (mode test)
+   4. Cliquez sur ⚙️ Paramètres du projet → Général
+   5. Tout en bas, « Vos applications » → icône web </>
+   6. Enregistrez l'appli, copiez les valeurs ci-dessous
+   ============================================================ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD1zzZpYtp7z6jpszgRM1PuKnvp1lDG9NI",
+  authDomain: "tactique-foot-a-8.firebaseapp.com",
+  projectId: "tactique-foot-a-8",
+  storageBucket: "tactique-foot-a-8.firebasestorage.app",
+  messagingSenderId: "319652242244",
+  appId: "1:319652242244:web:10407800ba07c5fe0e6d11"
+};
+
+/* ============ Cloud Sync (Firebase Firestore) ============ */
+let db=null;
+const TEAMS_LIST=[
+  {id:'equipe1', name:'Équipe 1'},
+  {id:'equipe2', name:'Équipe 2'},
+  {id:'equipe3', name:'Équipe 3'}
+];
+let currentTeamId=localStorage.getItem('tactiqueFoot8_team')||'equipe1';
+
+// Initialise Firebase si configuré
+try{
+  if(FIREBASE_CONFIG.projectId && typeof firebase!=='undefined'){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db=firebase.firestore();
+    db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+    console.log('☁️ Firebase connecté — partage activé');
+  }
+}catch(e){console.warn('Mode local (Firebase non configuré).');}
+
+// Écrit dans Firestore (données partagées entre tous les coachs)
+function cloudSetShared(docId, data){
+  if(!db)return;
+  try{db.collection('shared').doc(docId).set({data, ts:firebase.firestore.FieldValue.serverTimestamp()}).catch(()=>{});}catch(e){}
+}
+// Écrit dans Firestore (données par équipe)
+function cloudSetTeam(key, data){
+  if(!db)return;
+  try{db.collection('teams').doc(currentTeamId).set({[key]:data, ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}).catch(()=>{});}catch(e){}
+}
+// Écoute les changements en temps réel (données partagées)
+function cloudListenShared(docId, localStorageKey, onUpdate){
+  if(!db)return;
+  try{
+    db.collection('shared').doc(docId).onSnapshot(snap=>{
+      if(snap.exists && snap.data().data!==undefined){
+        localStorage.setItem(localStorageKey, JSON.stringify(snap.data().data));
+        if(onUpdate)onUpdate(snap.data().data);
+      }
+    });
+  }catch(e){}
+}
+// Écoute les changements en temps réel (données par équipe)
+function cloudListenTeam(onUpdate){
+  if(!db)return;
+  try{
+    db.collection('teams').doc(currentTeamId).onSnapshot(snap=>{
+      if(snap.exists){
+        const d=snap.data();
+        if(d.roster)localStorage.setItem('tactiqueFoot8_roster', JSON.stringify(d.roster));
+        if(d.favorites)localStorage.setItem('tactiqueFoot8_favorites', JSON.stringify(d.favorites));
+        if(onUpdate)onUpdate(d);
+      }
+    });
+  }catch(e){}
+}
+
+// Sélecteur d'équipe
+function initTeamSelector(){
+  const sel=document.getElementById('teamSelect');
+  sel.innerHTML='';
+  TEAMS_LIST.forEach(t=>{
+    const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.name;
+    sel.appendChild(opt);
+  });
+  sel.value=currentTeamId;
+  sel.onchange=()=>{
+    currentTeamId=sel.value;
+    localStorage.setItem('tactiqueFoot8_team', currentTeamId);
+    // Recharge les données de l'équipe depuis le cloud
+    cloudListenTeam();
+    // Re-render si des données de roster/favoris changent
+    if(typeof renderDrillList==='function')renderDrillList();
+  };
+}
+
+/* ============ Modèle ============ */
+const W=680,H=1040; // terrain vertical (ratio foot à 8 ~ 0.65)
+const pitch=document.getElementById('pitch');
+const wrap=document.getElementById('pitchWrap');
+
+let mode='move';
+let frames=[];        // chaque frame = {players:[{id,x,y}], ball:{x,y}}
+let arrows=[];        // flèches statiques {type,x1,y1,x2,y2,color}
+let curFrame=0;
+let animating=false;
+
+const HOME='var(--home)', AWAY='var(--away)';
+
+/* Formations : positions relatives (0..1) en x (largeur), y (longueur, 0=notre but) */
+const FORMATIONS={
+ '3-3-1':[[.5,.08],[.2,.28],[.5,.28],[.8,.28],[.2,.55],[.5,.55],[.8,.55],[.5,.82]],
+ '3-1-2-1':[[.5,.08],[.2,.25],[.5,.25],[.8,.25],[.5,.45],[.32,.62],[.68,.62],[.5,.85]],
+ '2-3-2':[[.5,.08],[.32,.25],[.68,.25],[.2,.5],[.5,.5],[.8,.5],[.32,.78],[.68,.78]],
+ '3-2-2':[[.5,.08],[.2,.28],[.5,.28],[.8,.28],[.35,.55],[.65,.55],[.35,.8],[.65,.8]],
+ '2-1-3-1':[[.5,.08],[.32,.24],[.68,.24],[.5,.42],[.2,.6],[.5,.6],[.8,.6],[.5,.85]]
+};
+const LABELS=['G','D1','D2','D3','M1','M2','M3','A1']; // adaptatif
+
+function makeFrameFromFormation(name){
+  const f=FORMATIONS[name];
+  const players=f.map((p,i)=>({id:i,x:p[0]*W,y:p[1]*H,team:'home',label:i===0?'G':String(i)}));
+  return {players, away:[], ball:{x:W/2,y:H*0.5}};
+}
+
+/* Au démarrage */
+frames=[makeFrameFromFormation('3-3-1')];
+// Les adversaires sont stockés dans chaque frame (frames[i].away) pour pouvoir les animer.
+// Quand on ajoute/supprime un adversaire via le bouton, l'opération s'applique à toutes les étapes.
+function awayCurrent(){return frames[curFrame].away||(frames[curFrame].away=[]);}
+function addAwayAll(x,y){
+  const idx=awayCurrent().length;
+  frames.forEach(f=>{if(!f.away)f.away=[];f.away.push({x,y,label:String(idx+1)});});
+}
+function removeAwayAll(idx){
+  frames.forEach(f=>{
+    if(f.away){f.away.splice(idx,1);f.away.forEach((p,i)=>p.label=String(i+1));}
+  });
+}
+function ensureAwayInAllFrames(){frames.forEach(f=>{if(!f.away)f.away=[];});}
+let gear=[];        // matériel d'entraînement {type,x,y}
+let gearType=null;  // objet sélectionné à poser
+
+/* ============ Dimensionnement responsive ============ */
+function resize(){
+  const stage=document.getElementById('stage');
+  const availW=stage.clientWidth-12, availH=stage.clientHeight-12;
+  let w=availW, h=w*H/W;
+  if(h>availH){h=availH;w=h*W/H;}
+  pitch.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  pitch.style.width=w+'px';pitch.style.height=h+'px';
+  wrap.style.width=w+'px';wrap.style.height=h+'px';
+}
+window.addEventListener('resize',resize);
+
+/* Matériel d'entraînement : icône (pour la palette) + dessin SVG sur le terrain */
+const GEAR_TYPES={
+  cone:   {emoji:'🔶', name:'Plot'},
+  hoop:   {emoji:'⭕', name:'Cerceau'},
+  ball:   {emoji:'⚽', name:'Ballon'},
+  minigoal:{emoji:'🥅', name:'Mini-but'},
+  ladder: {emoji:'🪜', name:'Échelle'},
+  pole:   {emoji:'🚩', name:'Piquet'},
+  marker: {emoji:'🟡', name:'Coupelle'},
+  zone:   {emoji:'🟦', name:'Zone'}
+};
+function drawGear(g,i){
+  const click=(mode==='erase')?`style="cursor:pointer"`:'';
+  const cls=`gearitem`;
+  switch(g.type){
+    case 'cone': return `<g class="${cls}" data-gi="${i}" ${click} transform="translate(${g.x},${g.y})"><polygon points="-13,14 13,14 0,-16" fill="#ff7a00" stroke="#000" stroke-width="2"/><rect x="-15" y="13" width="30" height="5" fill="#cc5f00"/></g>`;
+    case 'hoop': return `<g class="${cls}" data-gi="${i}" ${click} transform="translate(${g.x},${g.y})"><ellipse rx="20" ry="11" fill="none" stroke="#ffeb3b" stroke-width="6"/></g>`;
+    case 'ball': return `<g class="${cls}" data-gi="${i}" ${click} transform="translate(${g.x},${g.y})"><circle r="11" fill="#fff" stroke="#000" stroke-width="2"/><path d="M0,-11 L4,-4 L-4,-4 Z" fill="#000"/></g>`;
+    case 'minigoal': return `<g class="${cls}" data-gi="${i}" ${click} transform="translate(${g.x},${g.y})"><rect x="-26" y="-12" width="52" height="22" fill="none" stroke="#fff" stroke-width="3"/><line x1="-26" y1="-12" x2="-20" y2="-20" stroke="#fff" stroke-width="2"/><line x1="26" y1="-12" x2="20" y2="-20" stroke="#fff" stroke-width="2"/><path d="M-20,-20 L20,-20 L26,-12 M-20,-20 L-26,-12" fill="none" stroke="#fff" stroke-width="2"/></g>`;
+    case 'ladder': return `<g class="${cls}" data-gi="${i}" ${click} transform="translate(${g.x},${g.y})"><rect x="-15" y="-40" width="30" height="80" fill="none" stroke="#ffd54f" stroke-width="2"/>${[-30,-20,-10,0,10,20,30].map(o=>`<line x1="-15" y1="${o}" x2="15" y2="${o}" stroke="#ffd54f" stroke-width="2"/>`).join('')}</g>`;
+    case 'pole': return `<g class="${cls}" data-gi="${i}" ${click} transform="translate(${g.x},${g.y})"><line x1="0" y1="18" x2="0" y2="-22" stroke="#e53935" stroke-width="4"/><polygon points="0,-22 16,-16 0,-10" fill="#e53935"/></g>`;
+    case 'marker': return `<g class="${cls}" data-gi="${i}" ${click} transform="translate(${g.x},${g.y})"><ellipse rx="14" ry="6" fill="#ffd54f" stroke="#b58900" stroke-width="2"/><ellipse rx="7" ry="3" cy="-1" fill="#ffe57f"/></g>`;
+    case 'zone': {
+      const w=g.w||90, h=g.h||60;
+      const handles=(mode==='move')
+        ? `<rect class="zhandle" data-gi="${i}" data-h="nw" x="${-w/2-8}" y="${-h/2-8}" width="16" height="16" fill="#42a5f5" stroke="#fff" stroke-width="2" style="cursor:nwse-resize"/>
+           <rect class="zhandle" data-gi="${i}" data-h="ne" x="${w/2-8}" y="${-h/2-8}" width="16" height="16" fill="#42a5f5" stroke="#fff" stroke-width="2" style="cursor:nesw-resize"/>
+           <rect class="zhandle" data-gi="${i}" data-h="sw" x="${-w/2-8}" y="${h/2-8}" width="16" height="16" fill="#42a5f5" stroke="#fff" stroke-width="2" style="cursor:nesw-resize"/>
+           <rect class="zhandle" data-gi="${i}" data-h="se" x="${w/2-8}" y="${h/2-8}" width="16" height="16" fill="#42a5f5" stroke="#fff" stroke-width="2" style="cursor:nwse-resize"/>`
+        : '';
+      return `<g class="${cls}" data-gi="${i}" ${click} transform="translate(${g.x},${g.y})"><rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" fill="rgba(33,150,243,.25)" stroke="#42a5f5" stroke-width="2" stroke-dasharray="8 6"/>${handles}</g>`;
+    }
+  }
+  return '';
+}
+
+/* ============ Rendu terrain ============ */
+function pitchLines(){
+  const c=2.5;
+  return `
+  <rect x="0" y="0" width="${W}" height="${H}" fill="none"/>
+  <rect x="20" y="20" width="${W-40}" height="${H-40}" fill="none" stroke="var(--line)" stroke-width="${c}"/>
+  <line x1="20" y1="${H/2}" x2="${W-20}" y2="${H/2}" stroke="var(--line)" stroke-width="${c}"/>
+  <circle cx="${W/2}" cy="${H/2}" r="80" fill="none" stroke="var(--line)" stroke-width="${c}"/>
+  <circle cx="${W/2}" cy="${H/2}" r="4" fill="var(--line)"/>
+  <!-- surface bas (notre but) -->
+  <rect x="${W/2-150}" y="${H-20-130}" width="300" height="130" fill="none" stroke="var(--line)" stroke-width="${c}"/>
+  <rect x="${W/2-70}" y="${H-20-50}" width="140" height="50" fill="none" stroke="var(--line)" stroke-width="${c}"/>
+  <rect x="${W/2-50}" y="${H-20}" width="100" height="10" fill="var(--line)"/>
+  <!-- surface haut -->
+  <rect x="${W/2-150}" y="20" width="300" height="130" fill="none" stroke="var(--line)" stroke-width="${c}"/>
+  <rect x="${W/2-70}" y="20" width="140" height="50" fill="none" stroke="var(--line)" stroke-width="${c}"/>
+  <rect x="${W/2-50}" y="10" width="100" height="10" fill="var(--line)"/>
+  `;
+}
+
+function render(){
+  const fr=frames[curFrame];
+  let svg=pitchLines();
+
+  // défs flèches
+  svg+=`<defs>
+    <marker id="ah" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#fff"/></marker>
+    <marker id="ahp" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--accent)"/></marker>
+  </defs>`;
+
+  // flèches
+  arrows.forEach((a,i)=>{
+    const dash=a.type==='run'?'stroke-dasharray="14 10"':a.type==='pass'?'stroke-dasharray="2 12" stroke-linecap="round"':'';
+    const col=a.type==='pass'?'var(--accent)':'#fff';
+    const mk=a.type==='pass'?'url(#ahp)':'url(#ah)';
+    svg+=`<line class="arrowline" data-ai="${i}" x1="${a.x1}" y1="${a.y1}" x2="${a.x2}" y2="${a.y2}" stroke="${col}" stroke-width="5" ${dash} marker-end="${mk}" style="cursor:${mode==='erase'?'pointer':'default'}"/>`;
+  });
+
+  // matériel d'entraînement (sous les joueurs)
+  gear.forEach((g,i)=>{svg+=drawGear(g,i);});
+
+  // adversaires
+  // adversaires
+  (frames[curFrame].away||[]).forEach((p,i)=>{
+    svg+=`<g class="player marker away" data-away="${i}" transform="translate(${p.x},${p.y})">
+      <circle r="32" fill="${AWAY}"/><text font-size="26">${p.label}</text></g>`;
+  });
+
+  // joueurs maison
+  fr.players.forEach((p,i)=>{
+    const fs=p.label.length<=2?26:p.label.length<=3?20:p.label.length<=4?16:13;
+    svg+=`<g class="player marker home" data-pi="${i}" transform="translate(${p.x},${p.y})">
+      <circle r="32" fill="${p.color||HOME}"/><text font-size="${fs}">${p.label}</text></g>`;
+  });
+
+  // ballon
+  svg+=`<g class="ball marker" data-ball="1" transform="translate(${fr.ball.x},${fr.ball.y})">
+    <circle r="20" fill="#fff" stroke="#000" stroke-width="2"/>
+    <path d="M0,-20 L6,-6 L-6,-6 Z M-17,-3 L-6,4 L-11,17 M17,-3 L6,4 L11,17" fill="none" stroke="#000" stroke-width="2"/>
+  </g>`;
+
+  pitch.innerHTML=svg;
+  bindMarkers();
+}
+
+/* ============ Conversion coordonnées ============ */
+function toSvg(evt){
+  const pt=pitch.createSVGPoint();
+  const t=evt.touches?evt.touches[0]:evt;
+  pt.x=t.clientX;pt.y=t.clientY;
+  const ctm=pitch.getScreenCTM().inverse();
+  const r=pt.matrixTransform(ctm);
+  return {x:Math.max(8,Math.min(W-8,r.x)),y:Math.max(8,Math.min(H-8,r.y))};
+}
+
+/* ============ Interactions ============ */
+let drag=null, drawing=null;
+
+function bindMarkers(){
+  if(mode==='erase'){
+    pitch.querySelectorAll('.arrowline').forEach(l=>{
+      l.addEventListener('pointerdown',e=>{
+        e.stopPropagation();
+        arrows.splice(+l.dataset.ai,1);render();
+      });
+    });
+    pitch.querySelectorAll('.away').forEach(g=>{
+      g.style.cursor='pointer';
+      g.addEventListener('pointerdown',e=>{
+        e.stopPropagation();
+        removeAwayAll(+g.dataset.away);
+        render();
+      });
+    });
+    pitch.querySelectorAll('.gearitem').forEach(g=>{
+      g.addEventListener('pointerdown',e=>{
+        e.stopPropagation();
+        gear.splice(+g.dataset.gi,1);render();
+      });
+    });
+    return;
+  }
+  if(mode!=='move')return;
+  pitch.querySelectorAll('.marker').forEach(m=>{
+    m.addEventListener('pointerdown',startDrag);
+  });
+  pitch.querySelectorAll('.gearitem').forEach(m=>{
+    m.style.cursor='grab';
+    m.addEventListener('pointerdown',startDrag);
+  });
+  // poignées de redimensionnement des zones (priorité sur le drag)
+  pitch.querySelectorAll('.zhandle').forEach(h=>{
+    h.addEventListener('pointerdown',e=>{
+      e.preventDefault();e.stopPropagation();
+      const idx=+h.dataset.gi;
+      resizing={g:gear[idx],corner:h.dataset.h};
+    });
+  });
+}
+
+let resizing=null;
+
+function startDrag(e){
+  e.preventDefault();e.stopPropagation();
+  const g=e.currentTarget;
+  let ref;
+  if(g.dataset.gi!==undefined)ref=gear[+g.dataset.gi];
+  else if(g.dataset.ball)ref=frames[curFrame].ball;
+  else if(g.dataset.away!==undefined)ref=frames[curFrame].away[+g.dataset.away];
+  else ref=frames[curFrame].players[+g.dataset.pi];
+  drag={g,ref};
+  g.style.cursor='grabbing';
+}
+
+pitch.addEventListener('pointermove',e=>{
+  if(resizing){
+    const p=toSvg(e);
+    const z=resizing.g;
+    // calcule la nouvelle largeur/hauteur selon le coin tiré, garde le coin opposé fixe
+    const signX=resizing.corner.includes('e')?1:-1;
+    const signY=resizing.corner.includes('s')?1:-1;
+    const oppX=z.x-signX*(z.w||90)/2;
+    const oppY=z.y-signY*(z.h||60)/2;
+    const newW=Math.max(40,Math.abs(p.x-oppX));
+    const newH=Math.max(30,Math.abs(p.y-oppY));
+    z.w=newW;z.h=newH;
+    z.x=oppX+signX*newW/2;
+    z.y=oppY+signY*newH/2;
+    render();
+    return;
+  }
+  if(drag){
+    const p=toSvg(e);drag.ref.x=p.x;drag.ref.y=p.y;
+    drag.g.setAttribute('transform',`translate(${p.x},${p.y})`);
+  } else if(drawing){
+    const p=toSvg(e);drawing.line.setAttribute('x2',p.x);drawing.line.setAttribute('y2',p.y);
+    drawing.x2=p.x;drawing.y2=p.y;
+  }
+});
+window.addEventListener('pointerup',()=>{
+  if(resizing){resizing=null;return;}
+  if(drag){drag.g.style.cursor='grab';drag=null;}
+  if(drawing){
+    if(Math.hypot(drawing.x2-drawing.x1,drawing.y2-drawing.y1)>15){
+      arrows.push({type:drawing.type,x1:drawing.x1,y1:drawing.y1,x2:drawing.x2,y2:drawing.y2});
+    }
+    render();drawing=null;
+  }
+});
+
+// dessiner flèches ou poser adversaire sur fond
+pitch.addEventListener('pointerdown',e=>{
+  if(gearType){
+    const p=toSvg(e);
+    gear.push({type:gearType,x:p.x,y:p.y});
+    render();
+    return;
+  }
+  if(mode==='away'){
+    const p=toSvg(e);
+    addAwayAll(p.x,p.y);
+    render();
+    return;
+  }
+  if(mode==='arrow'||mode==='run'||mode==='pass'){
+    const p=toSvg(e);
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    const col=mode==='pass'?'var(--accent)':'#fff';
+    line.setAttribute('x1',p.x);line.setAttribute('y1',p.y);
+    line.setAttribute('x2',p.x);line.setAttribute('y2',p.y);
+    line.setAttribute('stroke',col);line.setAttribute('stroke-width','5');
+    if(mode==='run')line.setAttribute('stroke-dasharray','14 10');
+    if(mode==='pass'){line.setAttribute('stroke-dasharray','2 12');line.setAttribute('stroke-linecap','round');}
+    line.setAttribute('marker-end',mode==='pass'?'url(#ahp)':'url(#ah)');
+    pitch.appendChild(line);
+    drawing={line,type:mode,x1:p.x,y1:p.y,x2:p.x,y2:p.y};
+  }
+});
+
+/* ============ Modes ============ */
+const modeBtns={move:'modeMove',arrow:'modeArrow',run:'modeRun',pass:'modePass',erase:'modeErase',away:'modeAway'};
+function setMode(m){
+  mode=m;
+  Object.entries(modeBtns).forEach(([k,id])=>document.getElementById(id).classList.toggle('active',k===m));
+  if(typeof updateGroupActiveState==='function')updateGroupActiveState();
+  render();
+}
+document.getElementById('modeMove').onclick=()=>{gearType=null;setMode('move');};
+document.getElementById('modeArrow').onclick=()=>{gearType=null;setMode('arrow');};
+document.getElementById('modeRun').onclick=()=>{gearType=null;setMode('run');};
+document.getElementById('modePass').onclick=()=>{gearType=null;setMode('pass');};
+document.getElementById('modeErase').onclick=()=>{gearType=null;setMode('erase');};
+document.getElementById('modeAway').onclick=()=>{gearType=null;setMode('away');};
+
+/* ============ Menus déroulants groupés (Tactique / Séance) ============ */
+function setupToolGroup(btnId, popupId){
+  const btn=document.getElementById(btnId);
+  const popup=document.getElementById(popupId);
+  if(!btn||!popup)return;
+  btn.addEventListener('click',(e)=>{
+    e.stopPropagation();
+    // ferme les autres popups
+    document.querySelectorAll('.toolPopup.open').forEach(p=>{
+      if(p!==popup)p.classList.remove('open');
+    });
+    if(popup.classList.contains('open')){
+      popup.classList.remove('open');
+      return;
+    }
+    // Positionne le popup juste sous le bouton, calé pour ne pas sortir de l'écran
+    popup.classList.add('open');
+    const rect=btn.getBoundingClientRect();
+    popup.style.top=(rect.bottom+4)+'px';
+    const popupW=popup.offsetWidth||180;
+    let left=rect.left;
+    if(left+popupW>window.innerWidth-8){
+      left=Math.max(8, window.innerWidth-popupW-8);
+    }
+    popup.style.left=left+'px';
+  });
+  // ferme le popup après un clic sur un bouton à l'intérieur
+  popup.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      setTimeout(()=>popup.classList.remove('open'),50);
+    });
+  });
+}
+setupToolGroup('tactiqueBtn','tactiquePopup');
+setupToolGroup('seanceBtn','seancePopup');
+// ferme les popups au clic en dehors
+document.addEventListener('click',(e)=>{
+  if(!e.target.closest('.toolGroup')){
+    document.querySelectorAll('.toolPopup.open').forEach(p=>p.classList.remove('open'));
+  }
+});
+// Le bouton "Tactique" devient jaune (état actif) si un de ses outils est sélectionné
+const TACTIQUE_MODES=['arrow','run','pass','erase','away'];
+function updateGroupActiveState(){
+  const tactiqueActive=TACTIQUE_MODES.includes(mode)||!!gearType;
+  document.getElementById('tactiqueBtn').classList.toggle('active',tactiqueActive);
+}
+
+/* ============ Étapes / animation ============ */
+function renderFrameBar(){
+  const bar=document.getElementById('frames');bar.innerHTML='';
+  frames.forEach((f,i)=>{
+    const b=document.createElement('button');b.className='frameBtn'+(i===curFrame?' active':'');
+    b.textContent=i+1;
+    if(f.note){
+      // Indicateur visuel : petit point jaune en haut à droite si l'étape a une note
+      b.style.position='relative';
+      b.innerHTML=(i+1)+'<span style="position:absolute;top:1px;right:2px;width:6px;height:6px;background:#ffd54f;border-radius:50%;border:1px solid #000"></span>';
+      b.title='Note : '+f.note;
+    }
+    b.onclick=()=>{curFrame=i;renderFrameBar();render();};
+    bar.appendChild(b);
+  });
+}
+document.getElementById('addFrame').onclick=()=>{
+  // duplique la frame courante (y compris les adversaires)
+  const src=frames[curFrame];
+  const copy={
+    players:src.players.map(p=>({...p})),
+    away:(src.away||[]).map(p=>({...p})),
+    ball:{...src.ball}
+  };
+  frames.splice(curFrame+1,0,copy);curFrame++;renderFrameBar();render();
+};
+
+/* ============ Note personnalisée par étape ============ */
+document.getElementById('noteFrame').onclick=()=>{
+  const f=frames[curFrame];
+  const current=f.note||'';
+  const txt=prompt(
+    'Commentaire affiché pendant l\'animation pour l\'étape '+(curFrame+1)+' :\n'+
+    '(ex : "Lucas passe à Théo", "Tir au but !", "Repli défensif")\n'+
+    '— Laisser vide pour utiliser la légende automatique.',
+    current
+  );
+  if(txt===null)return;
+  if(txt.trim()==='')delete f.note;
+  else f.note=txt.trim();
+  renderFrameBar();
+};
+
+/* ============ Moteur d'animation amélioré ============ */
+// Vitesses disponibles
+const SPEEDS=[
+  {value:0.35, label:'🐢 Très lente'},
+  {value:0.6,  label:'🚶 Lente'},
+  {value:1.0,  label:'⚡ Normale'},
+  {value:1.5,  label:'🏃 Rapide'}
+];
+let speedIdx=2;
+let animSpeed=1.0;
+document.getElementById('speedBtn').onclick=()=>{
+  speedIdx=(speedIdx+1)%SPEEDS.length;
+  animSpeed=SPEEDS[speedIdx].value;
+  const btn=document.getElementById('speedBtn');
+  btn.querySelector('.label').textContent=SPEEDS[speedIdx].label.replace(/^[🐢🚶⚡🏃]\s*/,'');
+  btn.querySelector('.ico').textContent=SPEEDS[speedIdx].label.match(/^([🐢🚶⚡🏃])/)[1];
+};
+
+// Toggle son ON / OFF
+let soundOn=localStorage.getItem('tactiqueFoot8_soundOff')!=='1';
+function refreshSoundBtn(){
+  document.getElementById('soundBtn').querySelector('.ico').textContent=soundOn?'🔊':'🔇';
+}
+document.getElementById('soundBtn').onclick=()=>{
+  soundOn=!soundOn;
+  localStorage.setItem('tactiqueFoot8_soundOff',soundOn?'0':'1');
+  refreshSoundBtn();
+  if(soundOn)playWhistle();
+};
+refreshSoundBtn();
+
+// Détecte le type d'action entre 2 frames pour adapter durée, légende et flèche
+function detectAction(a, b){
+  const bs=a.ball, be=b.ball;
+  const ballDist=Math.hypot(be.x-bs.x, be.y-bs.y);
+  let minDistEnd=Infinity, minDistStart=Infinity;
+  b.players.forEach(p=>{const d=Math.hypot(be.x-p.x, be.y-p.y);if(d<minDistEnd)minDistEnd=d;});
+  a.players.forEach(p=>{const d=Math.hypot(bs.x-p.x, bs.y-p.y);if(d<minDistStart)minDistStart=d;});
+  let maxPlayerDist=0;
+  a.players.forEach((p,i)=>{if(b.players[i]){const d=Math.hypot(b.players[i].x-p.x, b.players[i].y-p.y);if(d>maxPlayerDist)maxPlayerDist=d;}});
+
+  // Tir : ballon part vers le haut (but) à grande vitesse, loin de tout joueur
+  if(be.y<200 && ballDist>100 && minDistEnd>50){
+    return {type:'shot', label:'🎯 Tir au but !', duration:380, arrowColor:'#f44336', arrowDash:'', marker:'ahs'};
+  }
+  // Passe : ballon en vol, loin des joueurs
+  if(minDistEnd>60 && ballDist>50){
+    return {type:'pass', label:'⚡ Passe', duration:480, arrowColor:'#ffd54f', arrowDash:'4 8', marker:'ahp'};
+  }
+  // Réception de passe : ballon arrive près d'un joueur après avoir été loin
+  if(minDistStart>60 && minDistEnd<60){
+    return {type:'receive', label:'🎯 Réception', duration:420, arrowColor:null, arrowDash:'', marker:''};
+  }
+  // Conduite : joueur et ballon se déplacent ensemble
+  if(maxPlayerDist>28 && ballDist>20){
+    return {type:'dribble', label:'⚽ Conduite', duration:880, arrowColor:null, arrowDash:'', marker:''};
+  }
+  // Course sans ballon
+  if(maxPlayerDist>28){
+    return {type:'run', label:'🏃 Course', duration:800, arrowColor:null, arrowDash:'', marker:''};
+  }
+  // Petit ajustement
+  return {type:'hold', label:'', duration:400, arrowColor:null, arrowDash:'', marker:''};
+}
+
+function showCaption(text, step, total){
+  const el=document.getElementById('animCaption');
+  if(!text){el.style.display='none';return;}
+  el.innerHTML=text+'<span class="captionStep">Étape '+step+' / '+total+'</span>';
+  el.style.display='block';
+}
+function hideCaption(){document.getElementById('animCaption').style.display='none';}
+
+document.getElementById('playBtn').onclick=()=>{
+  if(animating||frames.length<2)return;
+  animating=true;curFrame=0;renderFrameBar();
+  // Sifflet d'engagement au début
+  playWhistle();
+  let step=0;
+  let scoredGoal=false;
+  // Position du but (en haut du terrain, centre)
+  const goalX=W*0.5, goalY=H*0.12;
+  function go(){
+    if(step>=frames.length-1){
+      animating=false;hideCaption();render();
+      // Sifflet final + applaudissements si but
+      setTimeout(()=>{
+        if(scoredGoal)playApplause();
+      },200);
+      return;
+    }
+    const a=frames[step], b=frames[step+1];
+    const action=detectAction(a,b);
+    const dur=action.duration/animSpeed;
+    const caption=b.note||action.label;
+    showCaption(caption, step+2, frames.length);
+
+    // Son de frappe au début d'un tir
+    if(action.type==='shot')playKick();
+
+    const t0=performance.now();
+    function rfr(now){
+      let k=Math.min(1,(now-t0)/dur);
+      const isQuick=dur<600;
+      const e=isQuick
+        ? 1-Math.pow(1-k,3)
+        : (k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2);
+
+      let svg=pitchLines()+`<defs>
+        <marker id="ah" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#fff"/></marker>
+        <marker id="ahp" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ffd54f"/></marker>
+        <marker id="ahs" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#f44336"/></marker>
+      </defs>`;
+
+      // Flèches statiques tracées par l'utilisateur
+      arrows.forEach(ar=>{
+        const dash=ar.type==='run'?'stroke-dasharray="14 10"':ar.type==='pass'?'stroke-dasharray="2 12"':'';
+        const col=ar.type==='pass'?'var(--accent)':'#fff';
+        svg+=`<line x1="${ar.x1}" y1="${ar.y1}" x2="${ar.x2}" y2="${ar.y2}" stroke="${col}" stroke-width="5" ${dash}/>`;
+      });
+
+      gear.forEach((g,gi)=>{svg+=drawGear(g,gi);});
+
+      // Flèche dynamique d'action (passe/tir) qui se trace pendant le déplacement du ballon
+      if(action.arrowColor && e>0.05){
+        const curX=a.ball.x+(b.ball.x-a.ball.x)*e;
+        const curY=a.ball.y+(b.ball.y-a.ball.y)*e;
+        const opacity=k<0.85?0.75:0.75*(1-(k-0.85)/0.15);
+        svg+=`<line x1="${a.ball.x}" y1="${a.ball.y}" x2="${curX}" y2="${curY}" stroke="${action.arrowColor}" stroke-width="4" opacity="${opacity}" stroke-dasharray="${action.arrowDash}" marker-end="url(#${action.marker})"/>`;
+      }
+
+      // Adversaires interpolés (animés entre frames)
+      const aAway=a.away||[], bAway=b.away||[];
+      aAway.forEach((p,i)=>{
+        const q=bAway[i]||p;
+        const x=p.x+(q.x-p.x)*e, y=p.y+(q.y-p.y)*e;
+        svg+=`<g class="player" transform="translate(${x},${y})"><circle r="32" fill="${AWAY}" stroke="#000" stroke-width="2"/><text font-size="26" text-anchor="middle" dominant-baseline="central" fill="#fff" font-weight="bold">${p.label}</text></g>`;
+      });
+      // Joueurs maison interpolés
+      a.players.forEach((p,i)=>{
+        const q=b.players[i]||p;
+        const x=p.x+(q.x-p.x)*e, y=p.y+(q.y-p.y)*e;
+        const col=p.color||HOME;
+        const fs=p.label.length<=2?26:p.label.length<=3?20:p.label.length<=4?16:13;
+        svg+=`<g class="player" transform="translate(${x},${y})"><circle r="32" fill="${col}" stroke="#000" stroke-width="2"/><text font-size="${fs}" text-anchor="middle" dominant-baseline="central" fill="#fff" font-weight="bold">${p.label}</text></g>`;
+      });
+      // Ballon interpolé
+      const bx=a.ball.x+(b.ball.x-a.ball.x)*e, by=a.ball.y+(b.ball.y-a.ball.y)*e;
+      svg+=`<g transform="translate(${bx},${by})"><circle r="20" fill="#fff" stroke="#000" stroke-width="2"/></g>`;
+
+      pitch.innerHTML=svg;
+
+      if(k<1)requestAnimationFrame(rfr);
+      else{
+        step++;curFrame=step;renderFrameBar();
+        // Détection d'un but : tir qui se termine près de la cage (haut du terrain)
+        if(action.type==='shot'){
+          const dx=b.ball.x-goalX, dy=b.ball.y-goalY;
+          if(Math.hypot(dx,dy)<90){
+            scoredGoal=true;
+            playGoal();
+            showGoalEffect();
+          }
+        }
+        const pause=(action.type==='shot'||action.type==='pass'||action.type==='receive')?280:180;
+        setTimeout(go, pause/animSpeed);
+      }
+    }
+    requestAnimationFrame(rfr);
+  }
+  go();
+};
+
+/* ============ Matériel ============ */
+const gearModal=document.getElementById('gearModal');
+const gearGrid=document.getElementById('gearGrid');
+Object.entries(GEAR_TYPES).forEach(([key,info])=>{
+  const b=document.createElement('button');b.className='tool';
+  b.style.cssText='flex-direction:column;padding:10px 4px;font-size:11px;';
+  b.innerHTML=`<span style="font-size:24px">${info.emoji}</span>${info.name}`;
+  b.onclick=()=>{
+    gearType=key;setMode('move');
+    gearModal.style.display='none';
+  };
+  gearGrid.appendChild(b);
+});
+document.getElementById('gearBtn').onclick=()=>{gearModal.style.display='flex';};
+document.getElementById('closeGear').onclick=()=>{gearModal.style.display='none';};
+
+/* ============ Construction et déroulement de séances ============ */
+// === Effets sonores : sifflet, frappe, but, applaudissements ===
+let audioCtx=null;
+function getAudioCtx(){
+  if(!audioCtx){try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+  return audioCtx;
+}
+function playSound(fn){
+  if(!soundOn)return;
+  const ctx=getAudioCtx();if(!ctx)return;
+  if(ctx.state==='suspended')ctx.resume();
+  try{fn(ctx);}catch(e){}
+}
+function playBeep(){
+  playSound(ctx=>{
+    const b=(freq,start,dur)=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.value=freq;osc.type='sine';
+      gain.gain.setValueAtTime(0.0001,ctx.currentTime+start);
+      gain.gain.exponentialRampToValueAtTime(0.3,ctx.currentTime+start+0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+start+dur);
+      osc.start(ctx.currentTime+start);osc.stop(ctx.currentTime+start+dur);
+    };
+    b(880,0,0.18);b(880,0.25,0.18);b(1175,0.5,0.5);
+  });
+}
+function playWhistle(){
+  playSound(ctx=>{
+    const osc=ctx.createOscillator(),gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.type='square';
+    osc.frequency.setValueAtTime(2400,ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(2700,ctx.currentTime+0.1);
+    osc.frequency.linearRampToValueAtTime(2400,ctx.currentTime+0.3);
+    gain.gain.setValueAtTime(0.0001,ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.13,ctx.currentTime+0.02);
+    gain.gain.linearRampToValueAtTime(0.13,ctx.currentTime+0.32);
+    gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.42);
+    osc.start();osc.stop(ctx.currentTime+0.44);
+  });
+}
+function playKick(){
+  playSound(ctx=>{
+    const bufferSize=ctx.sampleRate*0.08;
+    const buf=ctx.createBuffer(1,bufferSize,ctx.sampleRate);
+    const data=buf.getChannelData(0);
+    for(let i=0;i<bufferSize;i++)data[i]=(Math.random()*2-1)*(1-i/bufferSize);
+    const noise=ctx.createBufferSource();noise.buffer=buf;
+    const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.value=180;
+    const gain=ctx.createGain();
+    gain.gain.setValueAtTime(0.7,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+0.08);
+    noise.connect(filter);filter.connect(gain);gain.connect(ctx.destination);
+    noise.start();noise.stop(ctx.currentTime+0.09);
+  });
+}
+function playGoal(){
+  playSound(ctx=>{
+    const notes=[523.25,659.25,783.99,1046.5]; // Do Mi Sol Do (octave supérieure)
+    notes.forEach((freq,i)=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.type='triangle';osc.frequency.value=freq;
+      const t=ctx.currentTime+i*0.11;
+      gain.gain.setValueAtTime(0.0001,t);
+      gain.gain.linearRampToValueAtTime(0.22,t+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+0.45);
+      osc.start(t);osc.stop(t+0.46);
+    });
+  });
+}
+function playApplause(){
+  playSound(ctx=>{
+    // ~40 petites bouffées de bruit filtré pour simuler des applaudissements
+    for(let i=0;i<40;i++){
+      const start=ctx.currentTime+Math.random()*1.4;
+      const bufferSize=ctx.sampleRate*0.05;
+      const buf=ctx.createBuffer(1,bufferSize,ctx.sampleRate);
+      const data=buf.getChannelData(0);
+      for(let j=0;j<bufferSize;j++)data[j]=(Math.random()*2-1)*(1-j/bufferSize);
+      const noise=ctx.createBufferSource();noise.buffer=buf;
+      const filter=ctx.createBiquadFilter();filter.type='bandpass';
+      filter.frequency.value=1800+Math.random()*1500;
+      filter.Q.value=2;
+      const gain=ctx.createGain();gain.gain.value=0.06;
+      noise.connect(filter);filter.connect(gain);gain.connect(ctx.destination);
+      noise.start(start);noise.stop(start+0.05);
+    }
+  });
+}
+
+// === Effet visuel BUT ! ===
+function showGoalEffect(){
+  const el=document.getElementById('goalEffect');
+  const conf=document.getElementById('confetti');
+  // Génère des confettis
+  conf.innerHTML='';
+  const emojis=['🎉','⭐','⚽','🎊','✨','🏆'];
+  for(let i=0;i<30;i++){
+    const s=document.createElement('span');
+    s.textContent=emojis[Math.floor(Math.random()*emojis.length)];
+    s.style.left=Math.random()*100+'%';
+    s.style.animationDelay=(Math.random()*0.5)+'s';
+    s.style.animationDuration=(1.5+Math.random()*1.2)+'s';
+    s.style.fontSize=(18+Math.random()*16)+'px';
+    conf.appendChild(s);
+  }
+  el.classList.add('active');
+  setTimeout(()=>el.classList.remove('active'), 2200);
+}
+
+// Fonction utilitaire de bip sonore (utilisée lors du passage d'atelier en séance)
+const SESSION_KEY='tactiqueFoot8_sessions';
+function getSessions(){try{return JSON.parse(localStorage.getItem(SESSION_KEY))||{};}catch(e){return {};}}
+function setSessions(o){localStorage.setItem(SESSION_KEY,JSON.stringify(o));cloudSetShared('sessions',o);}
+
+// Séance en cours d'édition : {name, steps:[{drillIdx, duration, customNote}]}
+let currentSession=null;
+// État de déroulement
+let sessionRunState=null; // {session, stepIdx, remaining, paused, interval}
+
+function openSessionModal(){
+  renderSessionList();
+  if(currentSession)showSessionEditor();
+  else document.getElementById('sessionEditor').style.display='none';
+  document.getElementById('sessionModal').style.display='flex';
+}
+function renderSessionList(){
+  const list=document.getElementById('sessionList');
+  const s=getSessions();const names=Object.keys(s);
+  if(!names.length){list.innerHTML='<p style="opacity:.6;font-size:12px;text-align:center;padding:10px">Aucune séance enregistrée.</p>';return;}
+  list.innerHTML='';
+  names.forEach(n=>{
+    const total=s[n].steps.reduce((a,x)=>a+x.duration,0);
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;gap:5px;align-items:center;margin-bottom:5px';
+    row.innerHTML=`
+      <button class="tool" style="flex:1;justify-content:flex-start;text-align:left;padding:8px">
+        <div style="font-weight:bold">${n}</div>
+        <div style="font-size:10px;opacity:.6">${s[n].steps.length} atelier${s[n].steps.length>1?'s':''} • ${total} min</div>
+      </button>
+      <button class="tool" style="padding:6px 8px;background:#5a2222">🗑</button>
+    `;
+    row.children[0].onclick=()=>{currentSession=JSON.parse(JSON.stringify(s[n]));showSessionEditor();};
+    row.children[1].onclick=()=>{if(confirm('Supprimer « '+n+' » ?')){const o=getSessions();delete o[n];setSessions(o);renderSessionList();}};
+    list.appendChild(row);
+  });
+}
+function showSessionEditor(){
+  document.getElementById('sessionEditor').style.display='block';
+  document.getElementById('sessionName').value=currentSession.name||'';
+  renderSessionSteps();
+}
+function renderSessionSteps(){
+  const stepsEl=document.getElementById('sessionStepsList');
+  stepsEl.innerHTML='';
+  let total=0;
+  if(!currentSession.steps.length){
+    stepsEl.innerHTML='<p style="text-align:center;opacity:.6;font-size:12px;padding:10px">Aucun atelier. Clique « Ajouter » ci-dessous.</p>';
+  } else {
+    currentSession.steps.forEach((st,i)=>{
+      total+=st.duration;
+      const drill=getAllDrills()[st.drillIdx];
+      const cat=drill?CATEGORIES[drill.category]:null;
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;gap:5px;align-items:center;padding:6px;background:#1d2a22;border-radius:6px;margin-bottom:4px';
+      row.innerHTML=`
+        <span style="font-weight:bold;color:var(--accent);min-width:22px">${i+1}.</span>
+        <span style="flex:1;font-size:13px">${cat?cat.icon+' ':''}${drill?drill.name:'(supprimé)'}</span>
+        <input type="number" min="1" max="60" value="${st.duration}" style="width:50px;padding:4px;background:#0f1c14;color:#fff;border:1px solid #3a5240;border-radius:4px;text-align:center">
+        <span style="font-size:11px;opacity:.6">min</span>
+        <button class="tool" style="padding:5px 8px;background:#5a2222">🗑</button>
+      `;
+      const inp=row.querySelector('input');
+      inp.oninput=()=>{st.duration=Math.max(1,parseInt(inp.value,10)||1);renderSessionSteps();};
+      row.querySelector('button').onclick=()=>{currentSession.steps.splice(i,1);renderSessionSteps();};
+      stepsEl.appendChild(row);
+    });
+  }
+  document.getElementById('sessionTotal').textContent='Durée totale : '+total+' min';
+}
+document.getElementById('sessionBtn').onclick=openSessionModal;
+document.getElementById('closeSession').onclick=()=>document.getElementById('sessionModal').style.display='none';
+document.getElementById('sessionNew').onclick=()=>{currentSession={name:'',steps:[]};showSessionEditor();};
+document.getElementById('sessionSave').onclick=()=>{
+  const name=document.getElementById('sessionName').value.trim();
+  if(!name){alert('Donne un nom à la séance.');return;}
+  if(!currentSession.steps.length){alert('La séance n\'a aucun atelier.');return;}
+  const all=getSessions();
+  currentSession.name=name;
+  all[name]={steps:currentSession.steps};
+  setSessions(all);
+  alert('« '+name+' » enregistrée ✅');
+  renderSessionList();
+};
+document.getElementById('sessionAddStep').onclick=()=>{
+  // Réutilise le sélecteur d'exercices en mode "choisir un exercice pour la séance"
+  openDrillPicker((drillIdx)=>{
+    const drill=getAllDrills()[drillIdx];
+    const defaultDur=drill.category==='warmup'?10:drill.category==='team'?20:drill.category==='setpieces'?15:12;
+    currentSession.steps.push({drillIdx,duration:defaultDur});
+    renderSessionSteps();
+  });
+};
+
+// Sélecteur d'exercices (réutilise la liste des drills, mais en mode "callback")
+let drillPickCallback=null;
+function openDrillPicker(cb){
+  drillPickCallback=cb;
+  // Modifie temporairement l'action sur les exercices : au lieu d'appliquer, on appelle le callback
+  buildCatFilter();buildLvlFilter();renderDrillListForPicker();
+  document.getElementById('trainModal').style.display='flex';
+}
+function renderDrillListForPicker(){
+  drillList.innerHTML='';
+  const filtered=getAllDrills().map((d,i)=>({d,i})).filter(({d})=>(activeCat==='all'||d.category===activeCat)&&(activeLvl==='all'||d.level===activeLvl));
+  const groups={};
+  filtered.forEach(item=>{(groups[item.d.category]=groups[item.d.category]||[]).push(item);});
+  Object.keys(CATEGORIES).forEach(catKey=>{
+    if(!groups[catKey])return;
+    const cat=CATEGORIES[catKey];
+    const h=document.createElement('div');
+    h.style.cssText='font-weight:bold;font-size:13px;color:var(--accent);padding:8px 4px 4px;border-bottom:1px solid #3a5240;margin:6px 0;';
+    h.innerHTML=`<span style="font-size:16px">${cat.icon}</span> ${cat.name}`;
+    drillList.appendChild(h);
+    groups[catKey].forEach(({d,i})=>{
+      const lvl=LEVELS[d.level];
+      const b=document.createElement('button');b.className='tool';
+      b.style.cssText='width:100%;margin-bottom:5px;padding:8px;justify-content:flex-start;text-align:left';
+      b.innerHTML=`<span style="flex:1">${d.name}</span><span style="font-size:10px;background:${lvl.color};color:#fff;padding:2px 6px;border-radius:8px">${lvl.label.replace(/^[🟢🟡🔴]\s*/,'')}</span>`;
+      b.onclick=()=>{
+        document.getElementById('trainModal').style.display='none';
+        if(drillPickCallback){const cb=drillPickCallback;drillPickCallback=null;cb(i);}
+        else applyDrill(i);
+      };
+      drillList.appendChild(b);
+    });
+  });
+}
+// On modifie le clic du bouton "trainBtn" pour distinguer le mode picker du mode normal
+const trainBtnOriginal=document.getElementById('trainBtn').onclick;
+document.getElementById('trainBtn').onclick=()=>{
+  drillPickCallback=null;
+  buildCatFilter();buildLvlFilter();renderDrillList();
+  trainModal.style.display='flex';
+};
+
+// Déroulement d'une séance
+document.getElementById('sessionPlay').onclick=()=>{
+  if(!currentSession||!currentSession.steps.length){alert('Séance vide.');return;}
+  document.getElementById('sessionModal').style.display='none';
+  startSessionRun(currentSession);
+};
+function startSessionRun(session){
+  sessionRunState={session,stepIdx:0,remaining:session.steps[0].duration*60,paused:false};
+  // Charge le 1er atelier
+  applyDrill(session.steps[0].drillIdx);
+  // Ferme la fiche d'atelier qui s'ouvre automatiquement
+  document.getElementById('drillModal').style.display='none';
+  document.getElementById('sessionRunner').style.display='block';
+  updateSessionRunner();
+  if(sessionRunState.interval)clearInterval(sessionRunState.interval);
+  sessionRunState.interval=setInterval(()=>{
+    if(!sessionRunState||sessionRunState.paused)return;
+    sessionRunState.remaining--;
+    if(sessionRunState.remaining<=0){
+      // Auto-passe à l'atelier suivant
+      sessionNextStep();
+    } else updateSessionRunner();
+  },1000);
+}
+function updateSessionRunner(){
+  if(!sessionRunState)return;
+  const s=sessionRunState;
+  const step=s.session.steps[s.stepIdx];
+  const drill=getAllDrills()[step.drillIdx];
+  document.getElementById('sessionRunnerStep').textContent='Atelier '+(s.stepIdx+1)+' / '+s.session.steps.length;
+  document.getElementById('sessionRunnerName').textContent=(drill?drill.name:'?');
+  const m=Math.floor(s.remaining/60),sec=s.remaining%60;
+  document.getElementById('sessionRunnerTime').textContent=String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+}
+function sessionNextStep(){
+  const s=sessionRunState;if(!s)return;
+  if(s.stepIdx>=s.session.steps.length-1){
+    // Fin de séance
+    clearInterval(s.interval);sessionRunState=null;
+    document.getElementById('sessionRunner').style.display='none';
+    playBeep();
+    alert('🎉 Séance terminée !');
+    return;
+  }
+  s.stepIdx++;
+  s.remaining=s.session.steps[s.stepIdx].duration*60;
+  applyDrill(s.session.steps[s.stepIdx].drillIdx);
+  document.getElementById('drillModal').style.display='none';
+  updateSessionRunner();
+  playBeep();
+}
+function sessionPrevStep(){
+  const s=sessionRunState;if(!s||s.stepIdx===0)return;
+  s.stepIdx--;
+  s.remaining=s.session.steps[s.stepIdx].duration*60;
+  applyDrill(s.session.steps[s.stepIdx].drillIdx);
+  document.getElementById('drillModal').style.display='none';
+  updateSessionRunner();
+}
+document.getElementById('sessionNext').onclick=sessionNextStep;
+document.getElementById('sessionPrev').onclick=sessionPrevStep;
+document.getElementById('sessionPauseStep').onclick=()=>{
+  if(!sessionRunState)return;
+  sessionRunState.paused=!sessionRunState.paused;
+  document.getElementById('sessionPauseStep').textContent=sessionRunState.paused?'▶':'⏸';
+};
+document.getElementById('sessionRunnerClose').onclick=()=>{
+  if(sessionRunState&&sessionRunState.interval)clearInterval(sessionRunState.interval);
+  sessionRunState=null;
+  document.getElementById('sessionRunner').style.display='none';
+};
+
+
+/* ============ Mon équipe (liste de joueurs) ============ */
+const ROSTER_KEY='tactiqueFoot8_roster';
+function getRoster(){try{return JSON.parse(localStorage.getItem(ROSTER_KEY))||[];}catch(e){return [];}}
+function saveRoster(r){localStorage.setItem(ROSTER_KEY,JSON.stringify(r));cloudSetTeam('roster',r);}
+
+function renderRosterList(){
+  const list=document.getElementById('rosterList');
+  const roster=getRoster();
+  if(!roster.length){
+    list.innerHTML='<p style="text-align:center;opacity:.6;font-size:13px;padding:14px">Aucun joueur. Clique « Ajouter » pour commencer.</p>';
+    return;
+  }
+  list.innerHTML='';
+  roster.forEach((name,i)=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:5px;background:#1d2a22;padding:6px 8px;border-radius:6px';
+    row.innerHTML=`
+      <span style="font-weight:bold;color:var(--accent);min-width:24px">${i+1}.</span>
+      <input type="text" value="${name.replace(/"/g,'&quot;')}" data-idx="${i}" style="flex:1;padding:6px;border:1px solid #3a5240;background:#0f1c14;color:#fff;border-radius:4px;font-size:13px" placeholder="Prénom">
+      <button class="tool" data-del="${i}" style="background:#5a2222;padding:5px 8px">🗑</button>
+    `;
+    list.appendChild(row);
+  });
+  // saisie en direct
+  list.querySelectorAll('input').forEach(inp=>{
+    inp.oninput=()=>{const r=getRoster();r[+inp.dataset.idx]=inp.value;saveRoster(r);};
+  });
+  list.querySelectorAll('[data-del]').forEach(b=>{
+    b.onclick=()=>{const r=getRoster();r.splice(+b.dataset.del,1);saveRoster(r);renderRosterList();};
+  });
+}
+document.getElementById('rosterBtn').onclick=()=>{renderRosterList();document.getElementById('rosterModal').style.display='flex';};
+document.getElementById('closeRoster').onclick=()=>document.getElementById('rosterModal').style.display='none';
+document.getElementById('rosterAdd').onclick=()=>{
+  const r=getRoster();r.push('');saveRoster(r);renderRosterList();
+  // focus sur le nouveau
+  setTimeout(()=>{const inps=document.querySelectorAll('#rosterList input');if(inps.length)inps[inps.length-1].focus();},30);
+};
+document.getElementById('applyRoster').onclick=()=>{
+  const r=getRoster().filter(n=>n&&n.trim());
+  if(!r.length){alert('La liste de joueurs est vide. Ajoute d\'abord des prénoms.');return;}
+  // Si exactement 8 prénoms : 1er = gardien, les 7 autres = joueurs de champ.
+  // Sinon : on garde "G" pour le gardien et on attribue les prénoms aux joueurs de champ dans l'ordre.
+  const eightPlayers=r.length>=8;
+  frames.forEach(f=>{
+    f.players.forEach((p,i)=>{
+      let name;
+      if(eightPlayers){
+        name=r[i]; // 0=G (prénom du gardien), 1..7=champ
+      } else {
+        if(i===0)return; // gardien garde "G"
+        name=r[i-1];
+      }
+      if(name){
+        const trimmed=name.trim();
+        p.label=trimmed.length>5?trimmed.substring(0,5):trimmed;
+      }
+    });
+  });
+  document.getElementById('rosterModal').style.display='none';
+  render();
+};
+document.getElementById('resetRoster').onclick=()=>{
+  frames.forEach(f=>{
+    f.players.forEach((p,i)=>{p.label=i===0?'G':String(i);});
+  });
+  render();
+  document.getElementById('rosterModal').style.display='none';
+};
+
+/* ============ Formations ============ */
+document.getElementById('formationBtn').onclick=()=>document.getElementById('formModal').style.display='flex';
+document.getElementById('closeForm').onclick=()=>document.getElementById('formModal').style.display='none';
+document.querySelectorAll('#formModal [data-form]').forEach(b=>{
+  b.onclick=()=>{
+    frames[curFrame]=makeFrameFromFormation(b.dataset.form);
+    document.getElementById('formModal').style.display='none';render();
+  };
+});
+
+/* ============ Aide ============ */
+document.getElementById('helpBtn').onclick=()=>document.getElementById('helpModal').style.display='flex';
+document.getElementById('closeHelp').onclick=()=>document.getElementById('helpModal').style.display='none';
+
+/* ============ Suppression d'étape ============ */
+document.getElementById('delFrame').onclick=()=>{
+  if(frames.length<=1)return;
+  frames.splice(curFrame,1);
+  if(curFrame>=frames.length)curFrame=frames.length-1;
+  renderFrameBar();render();
+};
+
+/* ============ Sauvegarde / chargement ============ */
+const STORE_KEY='tactiqueFoot8_saves';
+function getSaves(){try{return JSON.parse(localStorage.getItem(STORE_KEY))||{};}catch(e){return {};}}
+function setSaves(o){localStorage.setItem(STORE_KEY,JSON.stringify(o));cloudSetShared('saves',o);}
+
+function currentData(){
+  return {frames:JSON.parse(JSON.stringify(frames)),arrows:JSON.parse(JSON.stringify(arrows)),gear:JSON.parse(JSON.stringify(gear))};
+}
+function loadData(d){
+  frames=JSON.parse(JSON.stringify(d.frames));
+  arrows=JSON.parse(JSON.stringify(d.arrows||[]));
+  // Compatibilité avec les anciennes sauvegardes (adversaires globaux) : on les met dans la 1re frame
+  if(d.away&&d.away.length&&frames[0]&&!frames[0].away)frames[0].away=JSON.parse(JSON.stringify(d.away));
+  ensureAwayInAllFrames();
+  gear=JSON.parse(JSON.stringify(d.gear||[]));
+  curFrame=0;renderFrameBar();render();
+}
+
+document.getElementById('saveBtn').onclick=()=>{
+  const name=prompt("Nom de l'enregistrement (formation ou animation) :");
+  if(!name)return;
+  const s=getSaves();s[name]=currentData();setSaves(s);
+  alert('« '+name+' » enregistré ✅');
+};
+
+const loadModal=document.getElementById('loadModal');
+document.getElementById('loadBtn').onclick=()=>{refreshSaveList();loadModal.style.display='flex';};
+document.getElementById('closeLoad').onclick=()=>loadModal.style.display='none';
+
+function refreshSaveList(){
+  const list=document.getElementById('saveList');const s=getSaves();const names=Object.keys(s);
+  if(!names.length){list.innerHTML='<p style="font-size:13px;color:#9fc7a8">Aucun enregistrement pour l\'instant.</p>';return;}
+  list.innerHTML='';
+  names.forEach(n=>{
+    const row=document.createElement('div');row.style.cssText='display:flex;gap:5px;align-items:center;margin-bottom:5px;';
+    const nb=s[n].frames.length;
+    const open=document.createElement('button');open.className='tool';open.style.cssText='flex:1;justify-content:flex-start';
+    open.innerHTML=n+' <span style="opacity:.6;font-size:11px;margin-left:4px">('+(nb>1?nb+' étapes':'1 pos.')+')</span>';
+    open.onclick=()=>{loadData(s[n]);loadModal.style.display='none';};
+    const del=document.createElement('button');del.className='tool';del.textContent='🗑';del.style.background='#5a2222';
+    del.onclick=()=>{if(confirm('Supprimer « '+n+' » ?')){const o=getSaves();delete o[n];setSaves(o);refreshSaveList();}};
+    row.appendChild(open);row.appendChild(del);list.appendChild(row);
+  });
+}
+
+/* Export / import fichier (sauvegarde externe / partage) */
+document.getElementById('exportBtn').onclick=()=>{
+  const blob=new Blob([JSON.stringify(getSaves(),null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='tactiques-foot8.json';a.click();
+};
+document.getElementById('importBtn').onclick=()=>document.getElementById('importFile').click();
+document.getElementById('importFile').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{
+    const imported=JSON.parse(r.result);const s=getSaves();
+    Object.assign(s,imported);setSaves(s);refreshSaveList();
+    alert('Import réussi ✅');
+  }catch(err){alert('Fichier invalide.');}};
+  r.readAsText(f);
+};
+
+/* ============ Bibliothèque d'exercices ============ */
+// Positions en fraction du terrain (x:0..1 largeur, y:0..1 longueur — y=0 en haut)
+const CATEGORIES={
+  warmup:    {icon:'🔥', name:'Échauffement'},
+  motricity: {icon:'🤸', name:'Motricité'},
+  control:   {icon:'⚽', name:'Conduite'},
+  passing:   {icon:'🎁', name:'Passe'},
+  shooting:  {icon:'🎯', name:'Tir'},
+  defense:   {icon:'🛡️', name:'Défense'},
+  attack:    {icon:'⚔️', name:'Attaque'},
+  setpieces: {icon:'🚩', name:'Coups de pied arrêtés'},
+  team:      {icon:'👥', name:'Collectif'},
+  goalkeeper:{icon:'🥅', name:'Gardien'}
+};
+const LEVELS={
+  easy:  {label:'🟢 Facile',    color:'#4caf50'},
+  medium:{label:'🟡 Moyen',     color:'#ff9800'},
+  hard:  {label:'🔴 Difficile', color:'#f44336'}
+};
+
+const DRILLS=[
+  /* ===== ÉCHAUFFEMENT ===== */
+  {
+    name:"Course en carré", category:'warmup', level:'easy', age:"U7 à U11",
+    gear:[['cone',.3,.3],['cone',.7,.3],['cone',.7,.7],['cone',.3,.7]],
+    consignes:[
+      "4 plots forment un grand carré.",
+      "Le joueur fait le tour en footing, plot par plot.",
+      "Au signal, accélérer entre deux plots puis ralentir.",
+      "Idéal en début de séance pour activer en douceur."
+    ],
+    variantes:"Faire le tour à reculons • alterner pas chassés • plusieurs joueurs en file.",
+    labels:['J'],
+    anim:[
+      {p:[[.3,.7]], b:[.5,.5]},
+      {p:[[.3,.3]], b:[.5,.5]},
+      {p:[[.7,.3]], b:[.5,.5]},
+      {p:[[.7,.7]], b:[.5,.5]},
+      {p:[[.3,.7]], b:[.5,.5]}
+    ]
+  },
+  {
+    name:"Échauffement avec ballon", category:'warmup', level:'medium', age:"U9 à U13",
+    gear:[['cone',.3,.3],['cone',.7,.3],['cone',.7,.7],['cone',.3,.7]],
+    consignes:[
+      "Même carré que l'exercice précédent.",
+      "Le joueur conduit le ballon entre les plots.",
+      "Touches courtes au pied droit puis au pied gauche.",
+      "Garder la tête haute pour anticiper le prochain plot."
+    ],
+    variantes:"Intérieur du pied seulement • semelle au passage de chaque plot.",
+    labels:['J'],
+    anim:[
+      {p:[[.3,.7]], b:[.3,.72]},
+      {p:[[.3,.3]], b:[.3,.32]},
+      {p:[[.7,.3]], b:[.7,.32]},
+      {p:[[.7,.7]], b:[.7,.72]},
+      {p:[[.3,.7]], b:[.3,.72]}
+    ]
+  },
+
+  /* ===== MOTRICITÉ ===== */
+  {
+    name:"Échelle de rythme", category:'motricity', level:'easy', age:"U7 à U13",
+    gear:[['ladder',.5,.5],['cone',.5,.25]],
+    consignes:[
+      "Échelle au sol, un plot 5 m plus loin.",
+      "L'enfant traverse l'échelle (un pied par case, puis deux pieds par case…).",
+      "À la sortie, sprint jusqu'au plot.",
+      "Travail de coordination, de fréquence d'appuis et d'explosivité."
+    ],
+    variantes:"Finir par une conduite de balle • ajouter un saut entre les cases.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.62]], b:[.5,.9]},
+      {p:[[.5,.56]], b:[.5,.9]},
+      {p:[[.5,.5]],  b:[.5,.9]},
+      {p:[[.5,.44]], b:[.5,.9]},
+      {p:[[.5,.25]], b:[.5,.9]}
+    ]
+  },
+  {
+    name:"Slalom + sauts", category:'motricity', level:'medium', age:"U9 à U13",
+    gear:[['pole',.4,.75],['pole',.6,.65],['pole',.4,.55],['pole',.6,.45],['hoop',.5,.32],['cone',.5,.18]],
+    consignes:[
+      "Slalom entre 4 piquets, puis saut pieds joints dans le cerceau, puis sprint au plot.",
+      "Pendant le slalom, garder un rythme régulier.",
+      "Atterrir équilibré dans le cerceau avant le sprint.",
+      "Idéal pour la coordination et l'explosivité."
+    ],
+    variantes:"Cerceau remplacé par 3 cerceaux (cloche-pied) • ajouter un ballon à conduire après le sprint.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.82]], b:[.5,.9]},
+      {p:[[.45,.7]], b:[.5,.9]},
+      {p:[[.55,.6]], b:[.5,.9]},
+      {p:[[.45,.5]], b:[.5,.9]},
+      {p:[[.55,.4]], b:[.5,.9]},
+      {p:[[.5,.32]], b:[.5,.9]},
+      {p:[[.5,.18]], b:[.5,.9]}
+    ]
+  },
+
+  /* ===== CONDUITE ===== */
+  {
+    name:"Conduite en carré", category:'control', level:'easy', age:"U7 à U9",
+    gear:[['cone',.3,.3],['cone',.7,.3],['cone',.7,.7],['cone',.3,.7]],
+    consignes:[
+      "Le joueur conduit le ballon en faisant le tour du carré.",
+      "Petites touches : le ballon doit rester à 1 m du pied.",
+      "Aux plots, ralentir et changer de direction proprement.",
+      "Faire 2 tours dans un sens puis 2 tours dans l'autre."
+    ],
+    variantes:"Pied faible uniquement • semelle à chaque plot.",
+    labels:['J'],
+    anim:[
+      {p:[[.3,.7]], b:[.3,.72]},
+      {p:[[.3,.3]], b:[.3,.32]},
+      {p:[[.7,.3]], b:[.7,.32]},
+      {p:[[.7,.7]], b:[.7,.72]},
+      {p:[[.3,.7]], b:[.3,.72]}
+    ]
+  },
+  {
+    name:"Slalom + tir", category:'control', level:'medium', age:"U9 à U11",
+    gear:[['cone',.5,.78],['cone',.42,.68],['cone',.58,.58],['cone',.42,.48],['cone',.58,.38],['minigoal',.5,.12]],
+    consignes:[
+      "5 plots en slalom devant le but.",
+      "Conduire le ballon en zigzag entre les plots.",
+      "Au dernier plot, frapper au but.",
+      "Petites touches, tête relevée."
+    ],
+    variantes:"Chrono pour les plus grands • pied faible imposé • passe avant le tir.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.85]],  b:[.5,.85]},
+      {p:[[.55,.8]],  b:[.55,.8]},
+      {p:[[.58,.74]], b:[.58,.74]},
+      {p:[[.5,.7]],   b:[.5,.7]},
+      {p:[[.42,.68]], b:[.44,.68]},
+      {p:[[.45,.62]], b:[.45,.62]},
+      {p:[[.55,.58]], b:[.55,.58]},
+      {p:[[.5,.54]],  b:[.5,.54]},
+      {p:[[.42,.5]],  b:[.44,.5]},
+      {p:[[.46,.44]], b:[.46,.44]},
+      {p:[[.55,.4]],  b:[.55,.4]},
+      {p:[[.5,.36]],  b:[.5,.36]},
+      {p:[[.5,.34]],  b:[.5,.25]},
+      {p:[[.5,.34]],  b:[.5,.18]},
+      {p:[[.5,.34]],  b:[.5,.12]}
+    ]
+  },
+  {
+    name:"Parcours technique", category:'control', level:'hard', age:"U9 à U13",
+    gear:[['pole',.35,.72],['pole',.5,.6],['pole',.65,.48],['hoop',.5,.36],['minigoal',.5,.12]],
+    consignes:[
+      "Slalom entre les piquets, contrôle dans le cerceau, puis tir.",
+      "Garder le ballon proche du pied pendant tout le parcours.",
+      "Marquer un arrêt dans le cerceau (contrôle) avant de repartir.",
+      "Atelier idéal en début de séance pour le toucher de balle."
+    ],
+    variantes:"Relais entre deux équipes • imposer l'extérieur du pied.",
+    labels:['J'],
+    anim:[
+      {p:[[.35,.8]],  b:[.35,.8]},
+      {p:[[.42,.72]], b:[.4,.74]},
+      {p:[[.58,.6]],  b:[.55,.62]},
+      {p:[[.6,.48]],  b:[.6,.5]},
+      {p:[[.5,.38]],  b:[.5,.36]},
+      {p:[[.5,.36]],  b:[.5,.12]}
+    ]
+  },
+
+  /* ===== PASSE ===== */
+  {
+    name:"Passes face à face", category:'passing', level:'easy', age:"U7 à U9",
+    gear:[['marker',.5,.35],['marker',.5,.65]],
+    consignes:[
+      "Deux joueurs face à face, séparés par 5 à 8 m (entre les coupelles).",
+      "Passes au sol à 2 touches : contrôle puis passe.",
+      "Bien viser le pied du partenaire.",
+      "Travailler aussi le pied faible."
+    ],
+    variantes:"Une seule touche (passe directe) • limiter le temps entre 2 passes.",
+    labels:['1','2'],
+    anim:[
+      {p:[[.5,.35],[.5,.65]], b:[.5,.65]},
+      {p:[[.5,.35],[.5,.65]], b:[.5,.35]},
+      {p:[[.5,.35],[.5,.65]], b:[.5,.65]},
+      {p:[[.5,.35],[.5,.65]], b:[.5,.35]}
+    ]
+  },
+  {
+    name:"Cerceaux : passe et appui", category:'passing', level:'easy', age:"U9 à U13",
+    gear:[['hoop',.3,.7],['hoop',.5,.5],['hoop',.7,.7],['hoop',.5,.3]],
+    consignes:[
+      "4 cerceaux en losange, un joueur dans chaque cerceau.",
+      "Le ballon circule de cerceau en cerceau (passe au sol).",
+      "Le joueur reste dans son cerceau (version simple).",
+      "Travailler la passe précise et l'orientation du corps."
+    ],
+    variantes:"Limiter à 2 touches • ajouter un défenseur au milieu (rondo).",
+    labels:['1','2','3','4'],
+    anim:[
+      {p:[[.3,.7],[.5,.3],[.7,.7],[.5,.5]], b:[.3,.7]},
+      {p:[[.3,.7],[.5,.3],[.7,.7],[.5,.5]], b:[.5,.3]},
+      {p:[[.3,.7],[.5,.3],[.7,.7],[.5,.5]], b:[.7,.7]},
+      {p:[[.3,.7],[.5,.3],[.7,.7],[.5,.5]], b:[.5,.5]},
+      {p:[[.3,.7],[.5,.3],[.7,.7],[.5,.5]], b:[.3,.7]}
+    ]
+  },
+  {
+    name:"Triangle de passes", category:'passing', level:'medium', age:"U9 à U13",
+    gear:[['marker',.3,.6],['marker',.7,.6],['marker',.5,.3]],
+    consignes:[
+      "3 joueurs forment un triangle, environ 8 m de côté.",
+      "Le ballon circule toujours dans le même sens.",
+      "Après la passe, le joueur fait 2 pas latéraux puis revient.",
+      "Variante : sens inversé au signal du coach."
+    ],
+    variantes:"Une touche • inverser le sens • ajouter une 2ᵉ balle.",
+    labels:['1','2','3'],
+    anim:[
+      {p:[[.3,.6],[.7,.6],[.5,.3]], b:[.3,.6]},
+      {p:[[.3,.6],[.7,.6],[.5,.3]], b:[.7,.6]},
+      {p:[[.3,.6],[.7,.6],[.5,.3]], b:[.5,.3]},
+      {p:[[.3,.6],[.7,.6],[.5,.3]], b:[.3,.6]}
+    ]
+  },
+  {
+    name:"Une-deux + tir", category:'passing', level:'hard', age:"U11 à U13",
+    gear:[['cone',.3,.5],['minigoal',.5,.12]],
+    consignes:[
+      "Le joueur A part avec le ballon, le joueur B vient en appui sur le côté.",
+      "A donne à B, court en avant, B remet en une touche.",
+      "A frappe au but dès la remise.",
+      "Insister sur la course en profondeur après la passe."
+    ],
+    variantes:"Inverser les rôles • ajouter un défenseur passif.",
+    labels:['A','B'],
+    colors:['var(--home)','var(--home)'],
+    anim:[
+      {p:[[.5,.78],[.3,.5]], b:[.5,.78]},
+      {p:[[.45,.65],[.3,.5]], b:[.4,.6]},   // A passe à B
+      {p:[[.5,.45],[.3,.5]], b:[.32,.5]},   // A monte, ballon chez B
+      {p:[[.5,.35],[.3,.5]], b:[.45,.4]},   // B remet à A
+      {p:[[.5,.32],[.3,.5]], b:[.5,.12]}     // tir
+    ]
+  },
+
+  /* ===== TIR ===== */
+  {
+    name:"Tir après contrôle", category:'shooting', level:'easy', age:"U7 à U11",
+    gear:[['cone',.2,.5],['minigoal',.5,.12]],
+    consignes:[
+      "Un coach (ou joueur B) envoie une passe depuis le côté.",
+      "Le tireur contrôle, oriente, puis frappe au but.",
+      "Premier contrôle vers le but, pas vers soi.",
+      "Frappe en force ou placée selon le niveau."
+    ],
+    variantes:"Contrôle de la cuisse / poitrine • frappe du pied faible.",
+    labels:['T','P'],
+    colors:['var(--home)','var(--home)'],
+    anim:[
+      {p:[[.5,.5],[.2,.5]], b:[.2,.5]},
+      {p:[[.5,.5],[.2,.5]], b:[.45,.5]},  // ballon arrive
+      {p:[[.5,.45],[.2,.5]], b:[.5,.45]}, // contrôle vers l'avant
+      {p:[[.5,.45],[.2,.5]], b:[.5,.12]}  // tir
+    ]
+  },
+  {
+    name:"Tir après centre", category:'shooting', level:'medium', age:"U9 à U13",
+    gear:[['cone',.2,.4],['minigoal',.5,.12]],
+    consignes:[
+      "Le joueur A part sur l'aile en conduite, arrive au plot et centre.",
+      "Le joueur B (attaquant axial) attaque le ballon devant le but.",
+      "Travailler la frappe de volée ou la reprise au sol.",
+      "L'attaquant doit arriver lancé, pas attendre la balle."
+    ],
+    variantes:"Centre fort • centre en retrait • 2 attaquants au point de chute.",
+    labels:['A','B'],
+    colors:['var(--home)','var(--home)'],
+    anim:[
+      {p:[[.2,.7],[.6,.45]], b:[.2,.7]},
+      {p:[[.2,.5],[.55,.35]], b:[.2,.5]},  // A monte
+      {p:[[.2,.4],[.5,.25]], b:[.2,.4]},   // A au plot
+      {p:[[.2,.4],[.5,.2]],  b:[.5,.22]},  // centre vers le point de chute
+      {p:[[.2,.4],[.5,.2]],  b:[.5,.12]}    // tête / frappe au but
+    ]
+  },
+  {
+    name:"Combinaison à 3 + tir", category:'shooting', level:'hard', age:"U11 à U13",
+    gear:[['minigoal',.5,.12]],
+    consignes:[
+      "3 joueurs combinent : passe en triangle puis tir.",
+      "Chaque joueur joue à 2 touches max.",
+      "Le ballon doit progresser vers le but à chaque passe.",
+      "Le 3ᵉ joueur frappe sans contrôle si possible."
+    ],
+    variantes:"À une touche • avec un défenseur passif • finir par un centre.",
+    labels:['1','2','3'],
+    colors:['var(--home)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.5,.78],[.3,.6],[.7,.6]],   b:[.5,.78]},
+      {p:[[.5,.7],[.32,.58],[.7,.6]],  b:[.4,.65]},
+      {p:[[.5,.6],[.32,.55],[.7,.58]], b:[.32,.58]},
+      {p:[[.45,.5],[.36,.5],[.7,.55]], b:[.4,.52]},
+      {p:[[.45,.45],[.4,.45],[.7,.5]], b:[.55,.48]},
+      {p:[[.5,.4],[.4,.42],[.68,.45]], b:[.68,.45]},
+      {p:[[.5,.35],[.4,.42],[.62,.38]],b:[.6,.4]},
+      {p:[[.55,.3],[.4,.42],[.6,.32]], b:[.58,.32]},
+      {p:[[.55,.28],[.4,.42],[.58,.28]], b:[.55,.28]},
+      {p:[[.55,.28],[.4,.42],[.58,.28]], b:[.5,.18]},
+      {p:[[.55,.28],[.4,.42],[.58,.28]], b:[.5,.12]}
+    ]
+  },
+
+  /* ===== DÉFENSE ===== */
+  {
+    name:"1 contre 1 vers but", category:'defense', level:'medium', age:"U9 à U13",
+    gear:[['minigoal',.5,.12],['cone',.35,.55],['cone',.65,.55]],
+    consignes:[
+      "Deux portes de plots délimitent la zone.",
+      "Un attaquant face à un défenseur ; l'attaquant doit marquer.",
+      "Le défenseur cadre, ralentit, puis va au duel au bon moment.",
+      "Pour l'attaquant : feinte, changement de rythme, fixer puis éliminer."
+    ],
+    variantes:"Le défenseur démarre 2 m derrière • temps limité à 8 secondes.",
+    labels:['A','D'],
+    colors:['var(--home)','var(--away)'],
+    anim:[
+      {p:[[.5,.72],[.5,.4]],   b:[.5,.72]},
+      {p:[[.5,.66],[.5,.45]],  b:[.5,.66]},
+      {p:[[.45,.62],[.48,.48]],b:[.45,.62]},
+      {p:[[.4,.58],[.45,.5]],  b:[.4,.58]},
+      {p:[[.38,.54],[.42,.52]],b:[.38,.54]},
+      {p:[[.45,.5],[.42,.52]], b:[.45,.5]},
+      {p:[[.55,.46],[.45,.52]],b:[.55,.46]},
+      {p:[[.6,.42],[.5,.54]],  b:[.6,.42]},
+      {p:[[.55,.38],[.5,.54]], b:[.55,.38]},
+      {p:[[.5,.34],[.5,.54]],  b:[.5,.34]},
+      {p:[[.5,.32],[.5,.54]],  b:[.5,.22]},
+      {p:[[.5,.32],[.5,.54]],  b:[.5,.12]}
+    ]
+  },
+  {
+    name:"2 contre 2 récupération", category:'defense', level:'hard', age:"U11 à U13",
+    gear:[['minigoal',.5,.12],['cone',.25,.5],['cone',.75,.5]],
+    consignes:[
+      "2 attaquants face à 2 défenseurs dans une zone délimitée.",
+      "Les défenseurs récupèrent et relancent vers une zone cible.",
+      "Travailler la communication : qui cadre, qui couvre ?",
+      "Le 2ᵉ défenseur se place en couverture, pas à côté."
+    ],
+    variantes:"Avec gardien • 2c2 avec appui neutre • limiter la durée à 15 s.",
+    labels:['A1','A2','D1','D2'],
+    colors:['var(--home)','var(--home)','var(--away)','var(--away)'],
+    anim:[
+      {p:[[.4,.7],[.6,.7],[.4,.4],[.6,.4]], b:[.4,.7]},
+      {p:[[.45,.6],[.55,.65],[.42,.45],[.58,.45]], b:[.55,.65]}, // A1→A2
+      {p:[[.5,.55],[.5,.6],[.5,.45],[.55,.5]], b:[.5,.6]},        // D2 intercepte
+      {p:[[.5,.55],[.5,.6],[.4,.55],[.6,.55]], b:[.55,.55]},
+      {p:[[.5,.55],[.5,.6],[.3,.6],[.7,.6]], b:[.3,.6]}            // relance
+    ]
+  },
+
+  /* ===== ATTAQUE ===== */
+  {
+    name:"Attaque 2 contre 1", category:'attack', level:'medium', age:"U9 à U13",
+    gear:[['minigoal',.5,.12],['cone',.5,.7]],
+    consignes:[
+      "2 attaquants face à 1 seul défenseur.",
+      "Si le défenseur vient sur le porteur, faire la passe.",
+      "Si le défenseur reste, dribbler vers le but.",
+      "Toujours regarder le défenseur avant de décider."
+    ],
+    variantes:"Le défenseur démarre devant • ajouter un gardien • limiter à une passe.",
+    labels:['A1','A2','D'],
+    colors:['var(--home)','var(--home)','var(--away)'],
+    anim:[
+      {p:[[.4,.7],[.6,.7],[.5,.4]], b:[.4,.7]},
+      {p:[[.42,.6],[.6,.6],[.48,.45]], b:[.42,.6]},
+      {p:[[.42,.55],[.62,.5],[.45,.45]], b:[.55,.5]},    // passe à A2
+      {p:[[.42,.45],[.62,.35],[.5,.45]], b:[.62,.35]},   // A2 file
+      {p:[[.42,.4],[.62,.3],[.5,.45]],   b:[.5,.12]}      // tir
+    ]
+  },
+  {
+    name:"Centre + reprise", category:'attack', level:'hard', age:"U11 à U13",
+    gear:[['cone',.2,.4],['cone',.8,.4],['minigoal',.5,.12]],
+    consignes:[
+      "Deux ailiers et un attaquant axial.",
+      "L'ailier qui a le ballon centre, l'autre vient au second poteau.",
+      "L'axial attaque le premier poteau.",
+      "Arriver lancés sur le ballon, pas en attente."
+    ],
+    variantes:"Alterner les côtés • centre en retrait • ajouter un défenseur.",
+    labels:['G','A','D'],
+    colors:['var(--home)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.2,.7],[.5,.45],[.8,.7]],  b:[.2,.7]},
+      {p:[[.2,.5],[.5,.35],[.8,.5]],  b:[.2,.5]},   // ailier gauche progresse
+      {p:[[.2,.4],[.45,.22],[.7,.3]], b:[.2,.4]},   // attaquants plongent
+      {p:[[.2,.4],[.45,.2],[.65,.25]],b:[.5,.22]},  // centre
+      {p:[[.2,.4],[.45,.18],[.65,.25]],b:[.5,.12]}   // reprise
+    ]
+  },
+
+  /* ===== COUPS DE PIED ARRÊTÉS ===== */
+  {
+    name:"Corner court", category:'setpieces', level:'medium', age:"U11 à U13",
+    gear:[['minigoal',.5,.12]],
+    consignes:[
+      "Le tireur place le ballon au coin du terrain.",
+      "Un partenaire vient à 5 m demander un corner court.",
+      "Le tireur passe au partenaire qui prépare et centre.",
+      "Un attaquant attaque le premier poteau, un autre le second.",
+      "Surprendre la défense par la vitesse d'exécution."
+    ],
+    variantes:"Combinaison à 3 joueurs • centre en retrait • inverser le côté.",
+    labels:['T','P','A'],
+    colors:['var(--home)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.05,.05],[.18,.13],[.45,.22]], b:[.05,.05]},
+      {p:[[.07,.07],[.18,.13],[.45,.22]], b:[.05,.05]},
+      {p:[[.07,.07],[.18,.13],[.45,.22]], b:[.14,.12]},
+      {p:[[.07,.07],[.18,.13],[.5,.2]],   b:[.18,.13]},
+      {p:[[.07,.07],[.18,.13],[.5,.17]],  b:[.5,.17]},
+      {p:[[.07,.07],[.18,.13],[.5,.17]],  b:[.5,.12]}
+    ]
+  },
+  {
+    name:"Corner long", category:'setpieces', level:'easy', age:"U9 à U13",
+    gear:[['minigoal',.5,.12]],
+    consignes:[
+      "Le tireur place le ballon au coin et centre directement au point de pénalty.",
+      "L'attaquant axial attaque le ballon de la tête ou du pied.",
+      "Un 2ᵉ attaquant arrive au second poteau pour récupérer un raté.",
+      "Le tireur choisit une trajectoire rentrante ou sortante."
+    ],
+    variantes:"Inverser le côté • chercher le 1er poteau • centre à mi-hauteur.",
+    labels:['T','A1','A2'],
+    colors:['var(--home)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.05,.05],[.45,.25],[.6,.25]], b:[.05,.05]},
+      {p:[[.07,.07],[.45,.25],[.6,.25]], b:[.05,.05]},
+      {p:[[.07,.07],[.45,.2],[.6,.2]],   b:[.3,.15]},
+      {p:[[.07,.07],[.5,.17],[.6,.17]],  b:[.5,.15]},
+      {p:[[.07,.07],[.5,.17],[.6,.17]],  b:[.5,.12]}
+    ]
+  },
+  {
+    name:"Coup franc direct", category:'setpieces', level:'hard', age:"U11 à U13",
+    gear:[['minigoal',.5,.12],['cone',.42,.3],['cone',.46,.3],['cone',.5,.3],['cone',.54,.3],['cone',.58,.3]],
+    consignes:[
+      "Frappe directe au but, en général entre 18 et 25 m.",
+      "Le mur (les plots représentent les adversaires) est à 6 m du ballon.",
+      "Frappe enroulée (intérieur ou extérieur) pour contourner le mur.",
+      "Viser la lucarne ou le poteau opposé au gardien."
+    ],
+    variantes:"Frappe forte sous le mur si saut • mur plus ou moins éloigné.",
+    labels:['T'],
+    colors:['var(--home)'],
+    anim:[
+      {p:[[.5,.5]],   b:[.5,.5]},
+      {p:[[.48,.48]], b:[.5,.5]},
+      {p:[[.48,.48]], b:[.5,.4]},
+      {p:[[.48,.48]], b:[.45,.3]},
+      {p:[[.48,.48]], b:[.4,.2]},
+      {p:[[.48,.48]], b:[.35,.12]}
+    ]
+  },
+  {
+    name:"Coup franc indirect", category:'setpieces', level:'medium', age:"U9 à U13",
+    gear:[['minigoal',.5,.12]],
+    consignes:[
+      "Sur coup franc indirect, il faut au moins 2 joueurs touchant le ballon avant le tir.",
+      "Le premier joueur fait une petite passe latérale au deuxième.",
+      "Le deuxième frappe immédiatement, sans contrôle si possible.",
+      "Surprendre la défense par la vitesse d'exécution."
+    ],
+    variantes:"Passe en retrait avant la frappe • à 3 joueurs.",
+    labels:['1','2'],
+    colors:['var(--home)','var(--home)'],
+    anim:[
+      {p:[[.5,.5],[.55,.55]], b:[.5,.5]},
+      {p:[[.5,.5],[.55,.55]], b:[.53,.53]},
+      {p:[[.5,.5],[.55,.55]], b:[.55,.55]},
+      {p:[[.5,.5],[.55,.55]], b:[.5,.3]},
+      {p:[[.5,.5],[.55,.55]], b:[.5,.12]}
+    ]
+  },
+  {
+    name:"Touche en profondeur", category:'setpieces', level:'medium', age:"U9 à U13",
+    gear:[['cone',.25,.3]],
+    consignes:[
+      "Le lanceur se place sur la ligne de touche, à côté du ballon.",
+      "Un coéquipier part en course profonde dans le couloir.",
+      "Lancer au-dessus de la tête, fort et précis.",
+      "Le receveur contrôle de la cuisse ou de la poitrine."
+    ],
+    variantes:"Touche à ras de terre • touche dans les pieds • alterner les côtés.",
+    labels:['L','R'],
+    colors:['var(--home)','var(--home)'],
+    anim:[
+      {p:[[.02,.6],[.15,.55]], b:[.02,.6]},
+      {p:[[.02,.6],[.15,.5]],  b:[.02,.55]},
+      {p:[[.02,.6],[.2,.4]],   b:[.15,.45]},
+      {p:[[.02,.6],[.25,.3]],  b:[.25,.3]},
+      {p:[[.02,.6],[.35,.2]],  b:[.35,.2]}
+    ]
+  },
+  {
+    name:"Touche en relais", category:'setpieces', level:'easy', age:"U7 à U11",
+    gear:[['cone',.15,.5]],
+    consignes:[
+      "Le lanceur fait une touche courte à un coéquipier tout proche.",
+      "Le coéquipier remet directement (en une touche) au lanceur.",
+      "Le lanceur rentre sur le terrain et continue le jeu.",
+      "Solution simple quand un adversaire vient presser."
+    ],
+    variantes:"Remise dans la course • remise en retrait • défenseur passif.",
+    labels:['L','R'],
+    colors:['var(--home)','var(--home)'],
+    anim:[
+      {p:[[.02,.5],[.12,.55]], b:[.02,.5]},
+      {p:[[.02,.5],[.12,.55]], b:[.08,.52]},
+      {p:[[.02,.5],[.12,.55]], b:[.12,.55]},
+      {p:[[.05,.5],[.12,.55]], b:[.08,.52]},
+      {p:[[.1,.45],[.12,.55]], b:[.1,.47]}
+    ]
+  },
+
+  /* ===== JEU COLLECTIF ===== */
+  {
+    name:"Conservation 3 contre 1", category:'team', level:'easy', age:"U7 à U11",
+    gear:[['marker',.3,.4],['marker',.7,.4],['marker',.5,.7]],
+    consignes:[
+      "3 joueurs en triangle, 1 défenseur au milieu.",
+      "Les 3 extérieurs se font des passes, le défenseur essaie de toucher la balle.",
+      "Celui qui perd ou rate sa passe va au milieu.",
+      "Encourager à se déplacer pour offrir une solution."
+    ],
+    variantes:"À 2 touches • triangle plus petit = plus dur.",
+    labels:['1','2','3','D'],
+    colors:['var(--home)','var(--home)','var(--home)','var(--away)'],
+    anim:[
+      {p:[[.3,.4],[.7,.4],[.5,.7],[.5,.5]], b:[.3,.4]},
+      {p:[[.3,.4],[.7,.4],[.5,.7],[.45,.45]], b:[.7,.4]},
+      {p:[[.3,.4],[.7,.4],[.5,.7],[.6,.5]], b:[.5,.7]},
+      {p:[[.3,.4],[.7,.4],[.5,.7],[.55,.6]], b:[.3,.4]},
+      {p:[[.3,.4],[.7,.4],[.5,.7],[.4,.5]], b:[.7,.4]}
+    ]
+  },
+  {
+    name:"Rondo 4 contre 1", category:'team', level:'medium', age:"U9 à U13",
+    gear:[['marker',.32,.62],['marker',.68,.62],['marker',.32,.38],['marker',.68,.38]],
+    consignes:[
+      "4 coupelles forment un carré, 4 joueurs autour, 1 au milieu.",
+      "Les 4 extérieurs se font des passes, celui du milieu essaie de prendre le ballon.",
+      "Celui qui perd ou rate sa passe va au milieu.",
+      "Lever la tête avant de recevoir, se déplacer pour offrir une solution."
+    ],
+    variantes:"Carré plus petit • 2 défenseurs au milieu (5c2).",
+    labels:['1','2','3','4','D'],
+    colors:['var(--home)','var(--home)','var(--home)','var(--home)','var(--away)'],
+    anim:[
+      {p:[[.32,.38],[.68,.38],[.68,.62],[.32,.62],[.5,.5]],   b:[.32,.38]},
+      {p:[[.32,.38],[.68,.38],[.68,.62],[.32,.62],[.45,.42]], b:[.68,.38]},
+      {p:[[.32,.38],[.68,.38],[.68,.62],[.32,.62],[.6,.45]],  b:[.68,.62]},
+      {p:[[.32,.38],[.68,.38],[.68,.62],[.32,.62],[.6,.55]],  b:[.32,.62]},
+      {p:[[.32,.38],[.68,.38],[.68,.62],[.32,.62],[.45,.55]], b:[.32,.38]}
+    ]
+  },
+  {
+    name:"Jeu en zones (transition)", category:'team', level:'hard', age:"U11 à U13",
+    gear:[['zone',.5,.25,90,90],['zone',.5,.75,90,90],['marker',.2,.5],['marker',.8,.5]],
+    consignes:[
+      "Terrain coupé en deux zones (défense / attaque).",
+      "L'équipe doit faire X passes dans sa zone avant de transmettre dans la zone d'attaque.",
+      "Travailler la sortie de balle propre et la transition rapide.",
+      "Encourager à écarter le jeu et à relever la tête."
+    ],
+    variantes:"Imposer une passe en profondeur • bonus si but en moins de 10 s.",
+    labels:['1','2','3'],
+    colors:['var(--home)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.3,.78],[.7,.78],[.5,.55]], b:[.3,.78]},
+      {p:[[.3,.78],[.7,.78],[.5,.55]], b:[.7,.78]},
+      {p:[[.3,.78],[.7,.78],[.5,.55]], b:[.5,.55]},
+      {p:[[.3,.5],[.7,.5],[.5,.3]],    b:[.5,.3]},
+      {p:[[.3,.4],[.7,.4],[.5,.22]],   b:[.5,.22]}
+    ]
+  },
+
+  /* ===== GARDIEN ===== */
+  {
+    name:"Relance à la main", category:'goalkeeper', level:'easy', age:"U9 à U13",
+    gear:[['minigoal',.5,.12],['marker',.3,.45]],
+    consignes:[
+      "Le gardien tient le ballon après un arrêt.",
+      "Il choisit un coéquipier proche, libre de marquage.",
+      "Lancer à plat (lancer roulé) pour les courtes distances, ou bras cassé pour les longues.",
+      "Viser le pied du partenaire, pas devant lui."
+    ],
+    variantes:"Sur les côtés droit puis gauche • avec un attaquant qui presse.",
+    labels:['G','R'],
+    colors:['var(--accent)','var(--home)'],
+    anim:[
+      {p:[[.5,.18],[.3,.45]], b:[.5,.18]},
+      {p:[[.5,.18],[.3,.45]], b:[.4,.32]},
+      {p:[[.5,.18],[.3,.45]], b:[.3,.45]}
+    ]
+  },
+  {
+    name:"Plongeons côté", category:'goalkeeper', level:'easy', age:"U9 à U13",
+    gear:[['minigoal',.5,.12],['cone',.35,.3],['cone',.65,.3]],
+    consignes:[
+      "Gardien en place dans le but.",
+      "Le coach (ou un joueur) envoie des ballons à gauche puis à droite.",
+      "Plongeon main / pied le plus proche du ballon.",
+      "Bien se réceptionner sur le côté, ballon à deux mains."
+    ],
+    variantes:"Alterner droite/gauche • ballons à mi-hauteur • plus rapides.",
+    labels:['G','P'],
+    colors:['var(--accent)','var(--home)'],
+    anim:[
+      {p:[[.5,.18],[.5,.5]], b:[.5,.5]},
+      {p:[[.5,.18],[.5,.5]], b:[.32,.22]},   // ballon à gauche
+      {p:[[.34,.22],[.5,.5]], b:[.34,.22]},  // plongeon
+      {p:[[.5,.18],[.5,.5]],  b:[.5,.5]},     // retour
+      {p:[[.5,.18],[.5,.5]],  b:[.68,.22]},   // ballon à droite
+      {p:[[.66,.22],[.5,.5]], b:[.66,.22]}    // plongeon
+    ]
+  },
+  {
+    name:"Réflexes courte distance", category:'goalkeeper', level:'medium', age:"U9 à U13",
+    gear:[['minigoal',.5,.12],['cone',.5,.35]],
+    consignes:[
+      "Tireur à 5 m du but, sur le plot.",
+      "Frappes rapides successives, mi-hauteur et au sol.",
+      "Gardien : rester sur ses appuis, ne pas anticiper.",
+      "Bloquer ou repousser fermement, jamais relâcher devant soi."
+    ],
+    variantes:"3 ballons à la suite • alterner côtés • ajouter une feinte.",
+    labels:['G','T'],
+    colors:['var(--accent)','var(--home)'],
+    anim:[
+      {p:[[.5,.18],[.5,.35]], b:[.5,.35]},
+      {p:[[.5,.18],[.5,.35]], b:[.4,.2]},    // tir côté gauche
+      {p:[[.4,.2],[.5,.35]],  b:[.4,.2]},    // arrêt
+      {p:[[.5,.18],[.5,.35]], b:[.5,.35]},
+      {p:[[.5,.18],[.5,.35]], b:[.6,.2]},    // tir côté droit
+      {p:[[.6,.2],[.5,.35]],  b:[.6,.2]}
+    ]
+  },
+  {
+    name:"Relance gardien", category:'goalkeeper', level:'hard', age:"U11 à U13",
+    gear:[['minigoal',.5,.12],['marker',.25,.5],['marker',.75,.5]],
+    consignes:[
+      "Le gardien a le ballon en main ou au pied.",
+      "Deux relayeurs sur les côtés, à hauteur du milieu.",
+      "Choisir la bonne relance : à la main si court, au pied si long.",
+      "Travailler aussi le jeu au pied (passe à terre vers le défenseur)."
+    ],
+    variantes:"Ajouter un attaquant qui presse • imposer la main ou le pied.",
+    labels:['G','D1','D2'],
+    colors:['var(--accent)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.5,.18],[.25,.5],[.75,.5]], b:[.5,.2]},
+      {p:[[.5,.18],[.25,.5],[.75,.5]], b:[.4,.35]},   // ballon part vers la gauche
+      {p:[[.5,.18],[.25,.5],[.75,.5]], b:[.25,.5]},   // arrive chez D1
+      {p:[[.5,.22],[.25,.6],[.75,.5]], b:[.3,.6]},    // D1 part en conduite
+      {p:[[.5,.22],[.4,.7],[.75,.5]],  b:[.4,.72]}
+    ]
+  },
+
+  /* ===================================================== */
+  /*  EXERCICES SUPPLÉMENTAIRES (animations détaillées)    */
+  /* ===================================================== */
+
+  /* ----- Échauffement ----- */
+  {
+    name:"Toro 5 contre 2", category:'warmup', level:'medium', age:"U9 à U13",
+    gear:[['marker',.5,.25],['marker',.8,.4],['marker',.7,.7],['marker',.3,.7],['marker',.2,.4]],
+    consignes:[
+      "5 joueurs forment un pentagone, 2 défenseurs au milieu.",
+      "Les 5 extérieurs gardent le ballon en 1 ou 2 touches.",
+      "Les défenseurs essaient ensemble de récupérer.",
+      "Celui qui perd le ballon remplace un défenseur.",
+      "Excellent échauffement collectif : passe, déplacement, communication."
+    ],
+    variantes:"Pentagone plus grand • 2 ballons en circulation • 6 contre 2.",
+    labels:['1','2','3','4','5','D1','D2'],
+    colors:['var(--home)','var(--home)','var(--home)','var(--home)','var(--home)','var(--away)','var(--away)'],
+    anim:[
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.45,.5],[.55,.5]], b:[.5,.25]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.5,.45],[.6,.45]], b:[.65,.32]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.6,.45],[.65,.5]], b:[.8,.4]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.65,.5],[.7,.55]], b:[.75,.55]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.6,.55],[.65,.6]], b:[.7,.7]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.5,.6],[.6,.6]],   b:[.5,.7]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.4,.6],[.5,.55]],  b:[.3,.7]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.32,.6],[.4,.55]], b:[.25,.55]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.3,.5],[.4,.45]],  b:[.2,.4]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.35,.42],[.45,.4]],b:[.35,.32]},
+      {p:[[.5,.25],[.8,.4],[.7,.7],[.3,.7],[.2,.4],[.42,.4],[.5,.4]],  b:[.5,.25]}
+    ]
+  },
+  {
+    name:"Course en étoile", category:'warmup', level:'easy', age:"U7 à U11",
+    gear:[['cone',.5,.5],['cone',.5,.2],['cone',.8,.5],['cone',.5,.8],['cone',.2,.5]],
+    consignes:[
+      "1 plot au centre, 4 plots autour (forme une étoile).",
+      "Le joueur sprinte depuis le centre vers un plot extérieur.",
+      "Retour au centre en marchant, puis sprint vers le plot suivant.",
+      "Faire le tour des 4 plots dans le sens horaire.",
+      "Travail de l'explosivité dans les changements de direction."
+    ],
+    variantes:"Inverser sprint/marche • avec ballon en conduite • 2 joueurs en miroir.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.5]],  b:[.95,.95]},
+      {p:[[.5,.4]],  b:[.95,.95]},
+      {p:[[.5,.3]],  b:[.95,.95]},
+      {p:[[.5,.2]],  b:[.95,.95]},
+      {p:[[.5,.35]], b:[.95,.95]},
+      {p:[[.5,.5]],  b:[.95,.95]},
+      {p:[[.65,.5]], b:[.95,.95]},
+      {p:[[.8,.5]],  b:[.95,.95]},
+      {p:[[.65,.5]], b:[.95,.95]},
+      {p:[[.5,.5]],  b:[.95,.95]},
+      {p:[[.5,.65]], b:[.95,.95]},
+      {p:[[.5,.8]],  b:[.95,.95]},
+      {p:[[.5,.65]], b:[.95,.95]},
+      {p:[[.5,.5]],  b:[.95,.95]},
+      {p:[[.35,.5]], b:[.95,.95]},
+      {p:[[.2,.5]],  b:[.95,.95]},
+      {p:[[.5,.5]],  b:[.95,.95]}
+    ]
+  },
+
+  /* ----- Motricité ----- */
+  {
+    name:"Haies et sauts pieds joints", category:'motricity', level:'medium', age:"U9 à U13",
+    gear:[['pole',.5,.75],['pole',.5,.6],['pole',.5,.45],['pole',.5,.3],['cone',.5,.18]],
+    consignes:[
+      "4 haies basses (ou piquets posés au sol) tous les 1,5 m.",
+      "Le joueur saute pieds joints par-dessus chaque haie.",
+      "Atterrir équilibré, enchaîner immédiatement le saut suivant.",
+      "À la sortie, sprint jusqu'au plot d'arrivée.",
+      "Travail de tonicité, coordination et fréquence d'appuis."
+    ],
+    variantes:"Cloche-pied • 2 pieds puis 1 pied alternés • avec ballon à la fin.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.85]], b:[.95,.95]},
+      {p:[[.5,.78]], b:[.95,.95]},
+      {p:[[.5,.72]], b:[.95,.95]},
+      {p:[[.5,.66]], b:[.95,.95]},
+      {p:[[.5,.6]],  b:[.95,.95]},
+      {p:[[.5,.54]], b:[.95,.95]},
+      {p:[[.5,.48]], b:[.95,.95]},
+      {p:[[.5,.42]], b:[.95,.95]},
+      {p:[[.5,.36]], b:[.95,.95]},
+      {p:[[.5,.3]],  b:[.95,.95]},
+      {p:[[.5,.24]], b:[.95,.95]},
+      {p:[[.5,.18]], b:[.95,.95]}
+    ]
+  },
+
+  /* ----- Conduite ----- */
+  {
+    name:"Conduite en huit", category:'control', level:'medium', age:"U9 à U13",
+    gear:[['cone',.35,.4],['cone',.65,.6]],
+    consignes:[
+      "Deux plots placés en diagonale.",
+      "Le joueur conduit le ballon en forme de 8 autour des deux plots.",
+      "Garder le ballon proche, varier les surfaces (intérieur, extérieur).",
+      "Croiser au centre du 8, pied opposé selon le sens.",
+      "Faire 2 huits dans un sens puis 2 dans l'autre."
+    ],
+    variantes:"Pied faible imposé • semelle au passage de chaque plot • chrono.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.8]],  b:[.5,.8]},
+      {p:[[.55,.72]],b:[.55,.72]},
+      {p:[[.62,.65]],b:[.62,.65]},
+      {p:[[.68,.6]], b:[.68,.6]},
+      {p:[[.65,.52]],b:[.65,.52]},
+      {p:[[.55,.48]],b:[.55,.48]},
+      {p:[[.45,.46]],b:[.45,.46]},
+      {p:[[.38,.42]],b:[.38,.42]},
+      {p:[[.32,.4]], b:[.32,.4]},
+      {p:[[.32,.48]],b:[.32,.48]},
+      {p:[[.4,.55]], b:[.4,.55]},
+      {p:[[.5,.62]], b:[.5,.62]},
+      {p:[[.55,.72]],b:[.55,.72]},
+      {p:[[.5,.8]],  b:[.5,.8]}
+    ]
+  },
+
+  /* ----- Passe ----- */
+  {
+    name:"Passes en mouvement", category:'passing', level:'medium', age:"U9 à U13",
+    gear:[['cone',.35,.8],['cone',.65,.8],['cone',.35,.25],['cone',.65,.25]],
+    consignes:[
+      "Deux joueurs progressent en parallèle dans deux couloirs (matérialisés par les plots).",
+      "Ils se font des passes au sol tout en avançant.",
+      "Le joueur sans ballon doit toujours rester légèrement devant le porteur.",
+      "Travailler la passe orientée et la course de soutien."
+    ],
+    variantes:"Une touche • plus rapide • finir par une passe en profondeur.",
+    labels:['1','2'],
+    colors:['var(--home)','var(--home)'],
+    anim:[
+      {p:[[.35,.8],[.65,.8]],  b:[.35,.8]},
+      {p:[[.38,.75],[.62,.72]], b:[.4,.74]},
+      {p:[[.4,.7],[.6,.67]],   b:[.5,.69]},
+      {p:[[.4,.66],[.6,.62]],  b:[.58,.64]},
+      {p:[[.4,.6],[.6,.55]],   b:[.6,.6]},
+      {p:[[.4,.54],[.6,.5]],   b:[.55,.55]},
+      {p:[[.4,.48],[.6,.43]],  b:[.45,.5]},
+      {p:[[.4,.42],[.6,.38]],  b:[.4,.45]},
+      {p:[[.4,.36],[.6,.32]],  b:[.5,.36]},
+      {p:[[.4,.3],[.6,.27]],   b:[.58,.3]},
+      {p:[[.4,.27],[.6,.25]],  b:[.6,.27]}
+    ]
+  },
+  {
+    name:"Passes croisées en losange", category:'passing', level:'hard', age:"U11 à U13",
+    gear:[['marker',.5,.25],['marker',.8,.5],['marker',.5,.75],['marker',.2,.5]],
+    consignes:[
+      "4 joueurs aux 4 coupelles d'un losange (haut, droite, bas, gauche).",
+      "Le ballon traverse en diagonale : haut → bas, gauche → droite.",
+      "Chaque joueur joue à 2 touches : contrôle orienté puis passe.",
+      "Travailler la passe longue et la coordination collective.",
+      "Communiquer pour ne pas se gêner sur les diagonales."
+    ],
+    variantes:"Une touche • inverser le sens • ajouter une 2ᵉ balle.",
+    labels:['H','D','B','G'],
+    colors:['var(--home)','var(--home)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.5,.25]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.5,.4]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.5,.55]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.5,.75]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.4,.6]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.3,.55]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.2,.5]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.4,.5]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.6,.5]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.8,.5]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.65,.4]},
+      {p:[[.5,.25],[.8,.5],[.5,.75],[.2,.5]], b:[.5,.25]}
+    ]
+  },
+
+  /* ----- Tir ----- */
+  {
+    name:"Tir en pleine course", category:'shooting', level:'medium', age:"U9 à U13",
+    gear:[['cone',.5,.85],['cone',.5,.5],['minigoal',.5,.12]],
+    consignes:[
+      "Le joueur démarre derrière le premier plot avec le ballon.",
+      "Il accélère en conduite jusqu'au deuxième plot.",
+      "Au passage du 2ᵉ plot, frappe au but sans contrôle supplémentaire.",
+      "Garder la tête haute pour viser, frappe coup de pied complet."
+    ],
+    variantes:"Pied faible • frappe de l'extérieur • frappe en demi-volée après une passe.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.85]], b:[.5,.85]},
+      {p:[[.5,.8]],  b:[.5,.8]},
+      {p:[[.5,.74]], b:[.5,.74]},
+      {p:[[.5,.68]], b:[.5,.68]},
+      {p:[[.5,.62]], b:[.5,.62]},
+      {p:[[.5,.56]], b:[.5,.56]},
+      {p:[[.5,.5]],  b:[.5,.5]},
+      {p:[[.5,.46]], b:[.5,.4]},
+      {p:[[.5,.44]], b:[.5,.3]},
+      {p:[[.5,.43]], b:[.5,.2]},
+      {p:[[.5,.43]], b:[.5,.12]}
+    ]
+  },
+  {
+    name:"Tirs aux 6 mètres", category:'shooting', level:'easy', age:"U7 à U11",
+    gear:[['marker',.35,.22],['marker',.5,.22],['marker',.65,.22],['minigoal',.5,.12]],
+    consignes:[
+      "3 ballons posés sur 3 coupelles, près du but.",
+      "Le joueur tire successivement sur chaque ballon.",
+      "Viser un coin différent à chaque frappe.",
+      "Travail de précision et de concentration sous fatigue."
+    ],
+    variantes:"Pied faible • alterner gauche/droit/centre • avec gardien.",
+    labels:['T'],
+    anim:[
+      {p:[[.35,.32]], b:[.35,.22]},
+      {p:[[.35,.3]],  b:[.35,.22]},
+      {p:[[.35,.3]],  b:[.3,.17]},
+      {p:[[.35,.3]],  b:[.27,.12]},
+      {p:[[.42,.32]], b:[.5,.22]},
+      {p:[[.5,.3]],   b:[.5,.22]},
+      {p:[[.5,.3]],   b:[.5,.16]},
+      {p:[[.5,.3]],   b:[.5,.12]},
+      {p:[[.58,.32]], b:[.65,.22]},
+      {p:[[.65,.3]],  b:[.65,.22]},
+      {p:[[.65,.3]],  b:[.7,.17]},
+      {p:[[.65,.3]],  b:[.73,.12]}
+    ]
+  },
+
+  /* ----- Défense ----- */
+  {
+    name:"Repli défensif rapide", category:'defense', level:'medium', age:"U9 à U13",
+    gear:[['marker',.5,.85]],
+    consignes:[
+      "Situation d'attaque : le défenseur est monté très haut sur le terrain.",
+      "Le ballon est perdu, un attaquant adverse part en contre-attaque.",
+      "Le défenseur doit sprinter en course arrière, garder l'attaquant devant lui.",
+      "Objectif : se replacer entre l'attaquant et son propre but, ralentir la progression.",
+      "Travail mental autant que physique : réagir vite à la perte."
+    ],
+    variantes:"Sans ballon (juste course) • finir par une récupération • 2 défenseurs.",
+    labels:['D','A'],
+    colors:['var(--home)','var(--away)'],
+    anim:[
+      {p:[[.5,.3],[.45,.28]],  b:[.45,.28]},
+      {p:[[.5,.35],[.5,.35]],  b:[.5,.35]},
+      {p:[[.5,.4],[.5,.42]],   b:[.5,.42]},
+      {p:[[.52,.48],[.5,.5]],  b:[.5,.5]},
+      {p:[[.54,.55],[.5,.58]], b:[.5,.58]},
+      {p:[[.56,.63],[.5,.66]], b:[.5,.66]},
+      {p:[[.55,.7],[.5,.72]],  b:[.5,.72]},
+      {p:[[.52,.76],[.5,.78]], b:[.5,.78]},
+      {p:[[.5,.82],[.5,.82]],  b:[.5,.82]}
+    ]
+  },
+  {
+    name:"Couverture défensive", category:'defense', level:'hard', age:"U11 à U13",
+    gear:[['minigoal',.5,.12]],
+    consignes:[
+      "1 attaquant face à 2 défenseurs.",
+      "Le défenseur le plus proche du ballon va cadrer (D1).",
+      "Le 2ᵉ défenseur se place en retrait, en couverture (D2).",
+      "Si D1 est éliminé, D2 prend le relais et D1 redevient couverture.",
+      "Communication essentielle : 'à toi', 'couvre', 'cadre'."
+    ],
+    variantes:"Avec gardien • limiter à 10 secondes • D2 démarre plus loin.",
+    labels:['A','D1','D2'],
+    colors:['var(--home)','var(--away)','var(--away)'],
+    anim:[
+      {p:[[.5,.75],[.5,.55],[.5,.4]],  b:[.5,.75]},
+      {p:[[.5,.7],[.5,.6],[.5,.45]],   b:[.5,.7]},
+      {p:[[.4,.65],[.45,.6],[.5,.5]],  b:[.4,.65]},
+      {p:[[.35,.6],[.4,.58],[.5,.5]],  b:[.35,.6]},
+      {p:[[.3,.55],[.35,.55],[.45,.5]],b:[.3,.55]},
+      {p:[[.3,.5],[.35,.52],[.4,.48]], b:[.3,.5]},
+      {p:[[.32,.45],[.35,.5],[.38,.46]],b:[.32,.45]},
+      {p:[[.35,.42],[.36,.48],[.4,.45]],b:[.35,.42]},
+      {p:[[.35,.42],[.36,.44],[.4,.42]],b:[.36,.42]},
+      {p:[[.35,.42],[.4,.42],[.42,.4]], b:[.4,.42]}
+    ]
+  },
+
+  /* ----- Attaque ----- */
+  {
+    name:"Attaque rapide 3 contre 0", category:'attack', level:'easy', age:"U9 à U13",
+    gear:[['minigoal',.5,.12]],
+    consignes:[
+      "3 attaquants partent du milieu de terrain, alignés.",
+      "Ils combinent avec un maximum de 2 touches par joueur.",
+      "Le ballon doit progresser à chaque passe vers le but.",
+      "Le 3ᵉ joueur conclut sans contrôle si possible.",
+      "Pas de défenseur : travail de la fluidité collective."
+    ],
+    variantes:"Une touche obligatoire • finir par centre-tir • ajouter un défenseur passif.",
+    labels:['1','2','3'],
+    colors:['var(--home)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.3,.55],[.5,.5],[.7,.55]], b:[.3,.55]},
+      {p:[[.32,.5],[.5,.45],[.7,.5]], b:[.4,.48]},
+      {p:[[.32,.45],[.5,.4],[.7,.45]],b:[.5,.42]},
+      {p:[[.32,.42],[.52,.36],[.68,.4]], b:[.6,.37]},
+      {p:[[.32,.4],[.55,.32],[.65,.34]], b:[.65,.34]},
+      {p:[[.32,.38],[.55,.28],[.6,.3]],  b:[.58,.3]},
+      {p:[[.32,.38],[.55,.24],[.55,.26]],b:[.55,.26]},
+      {p:[[.32,.38],[.55,.2],[.5,.22]],  b:[.5,.22]},
+      {p:[[.32,.38],[.5,.18],[.5,.2]],   b:[.5,.18]},
+      {p:[[.32,.38],[.5,.18],[.5,.2]],   b:[.5,.12]}
+    ]
+  },
+  {
+    name:"Renversement de jeu", category:'attack', level:'hard', age:"U11 à U13",
+    gear:[['cone',.15,.4],['cone',.85,.4],['minigoal',.5,.12]],
+    consignes:[
+      "3 joueurs : ailier gauche, milieu axial, ailier droit.",
+      "Le ballon part d'un côté, traverse par le milieu, ressort de l'autre côté.",
+      "Le milieu joue en une touche pour conserver la vitesse.",
+      "L'ailier qui reçoit attaque le but ou centre.",
+      "Travail du jeu large et du changement d'aile."
+    ],
+    variantes:"Renversement long (sans le milieu) • avec un défenseur axial • finir par centre-tir.",
+    labels:['G','M','D'],
+    colors:['var(--home)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.15,.5],[.5,.55],[.85,.5]], b:[.15,.5]},
+      {p:[[.15,.5],[.5,.55],[.85,.5]], b:[.3,.52]},
+      {p:[[.15,.5],[.5,.55],[.85,.5]], b:[.45,.55]},
+      {p:[[.15,.5],[.5,.55],[.85,.5]], b:[.5,.55]},
+      {p:[[.15,.5],[.5,.55],[.85,.5]], b:[.6,.53]},
+      {p:[[.15,.5],[.5,.55],[.85,.5]], b:[.75,.5]},
+      {p:[[.15,.5],[.5,.55],[.85,.5]], b:[.85,.5]},
+      {p:[[.2,.45],[.5,.5],[.8,.4]],   b:[.8,.4]},
+      {p:[[.25,.4],[.5,.4],[.75,.3]],  b:[.75,.3]},
+      {p:[[.3,.35],[.5,.3],[.7,.25]],  b:[.7,.25]},
+      {p:[[.3,.35],[.5,.22],[.65,.2]], b:[.6,.2]},
+      {p:[[.3,.35],[.5,.18],[.6,.18]], b:[.5,.15]},
+      {p:[[.3,.35],[.5,.18],[.6,.18]], b:[.5,.12]}
+    ]
+  },
+
+  /* ----- Coups de pied arrêtés ----- */
+  {
+    name:"Penalty", category:'setpieces', level:'easy', age:"U9 à U13",
+    gear:[['marker',.5,.2],['minigoal',.5,.12]],
+    consignes:[
+      "Le tireur place le ballon sur le point de pénalty.",
+      "Le gardien reste sur sa ligne jusqu'à la frappe.",
+      "Choisir un coin avant de prendre son élan, ne pas changer d'avis.",
+      "Frappe placée (intérieur du pied) ou puissante selon le choix.",
+      "Garder la cheville verrouillée et regarder le ballon à l'impact."
+    ],
+    variantes:"Penalty décalé en feinte de frappe • tir du pied faible • à 3 essais.",
+    labels:['T','G'],
+    colors:['var(--home)','var(--accent)'],
+    anim:[
+      {p:[[.5,.3],[.5,.16]], b:[.5,.22]},
+      {p:[[.5,.28],[.5,.16]],b:[.5,.22]},
+      {p:[[.5,.26],[.5,.16]],b:[.5,.22]},
+      {p:[[.5,.24],[.5,.16]],b:[.5,.22]},
+      {p:[[.5,.23],[.5,.16]],b:[.45,.2]},
+      {p:[[.5,.23],[.4,.15]],b:[.4,.18]},
+      {p:[[.5,.23],[.35,.14]],b:[.32,.15]},
+      {p:[[.5,.23],[.35,.14]],b:[.27,.12]}
+    ]
+  },
+  {
+    name:"Dégagement aux 6 mètres", category:'setpieces', level:'medium', age:"U9 à U13",
+    gear:[['minigoal',.5,.12],['marker',.3,.55],['marker',.7,.55]],
+    consignes:[
+      "Le gardien place le ballon dans la surface des 6 mètres.",
+      "Il prend son élan (3 ou 4 pas en arrière).",
+      "Il dégage long, idéalement vers un coéquipier (les marques).",
+      "Frappe coup de pied complet, ballon mi-hauteur ou en cloche.",
+      "Lever la tête avant le dégagement pour choisir la cible."
+    ],
+    variantes:"Dégagement bas et tendu • dégagement court à un défenseur • avec attaquant qui presse.",
+    labels:['G','R1','R2'],
+    colors:['var(--accent)','var(--home)','var(--home)'],
+    anim:[
+      {p:[[.5,.22],[.3,.55],[.7,.55]], b:[.5,.18]},
+      {p:[[.5,.25],[.3,.55],[.7,.55]], b:[.5,.18]},
+      {p:[[.5,.22],[.3,.55],[.7,.55]], b:[.5,.18]},
+      {p:[[.5,.2],[.3,.55],[.7,.55]],  b:[.5,.18]},
+      {p:[[.5,.2],[.3,.55],[.7,.55]],  b:[.5,.3]},
+      {p:[[.5,.2],[.3,.55],[.7,.55]],  b:[.55,.4]},
+      {p:[[.5,.2],[.3,.55],[.7,.55]],  b:[.6,.5]},
+      {p:[[.5,.2],[.3,.55],[.7,.55]],  b:[.65,.55]},
+      {p:[[.5,.2],[.3,.58],[.7,.55]],  b:[.7,.55]}
+    ]
+  },
+
+  /* ----- Collectif ----- */
+  {
+    name:"Possession 4 contre 2", category:'team', level:'medium', age:"U11 à U13",
+    gear:[['marker',.3,.35],['marker',.7,.35],['marker',.7,.65],['marker',.3,.65]],
+    consignes:[
+      "4 joueurs forment un carré (plus grand que pour un rondo classique).",
+      "2 défenseurs au milieu travaillent ensemble à la récupération.",
+      "Les 4 extérieurs jouent à 2 touches max, peuvent se déplacer le long des lignes.",
+      "Apprendre à ouvrir des angles de passe et à fixer un défenseur avant de passer.",
+      "Communication entre les 2 défenseurs : un cadre, un coupe la ligne de passe."
+    ],
+    variantes:"À 1 touche • carré plus petit • 5 contre 2.",
+    labels:['1','2','3','4','D1','D2'],
+    colors:['var(--home)','var(--home)','var(--home)','var(--home)','var(--away)','var(--away)'],
+    anim:[
+      {p:[[.3,.35],[.7,.35],[.7,.65],[.3,.65],[.45,.5],[.55,.5]], b:[.3,.35]},
+      {p:[[.3,.35],[.7,.35],[.7,.65],[.3,.65],[.4,.45],[.5,.45]], b:[.45,.35]},
+      {p:[[.3,.35],[.7,.35],[.7,.65],[.3,.65],[.5,.42],[.55,.45]],b:[.7,.35]},
+      {p:[[.3,.35],[.7,.35],[.7,.65],[.3,.65],[.55,.45],[.6,.5]], b:[.7,.5]},
+      {p:[[.3,.35],[.7,.35],[.7,.65],[.3,.65],[.6,.5],[.62,.55]], b:[.7,.65]},
+      {p:[[.3,.35],[.7,.35],[.7,.65],[.3,.65],[.55,.55],[.6,.58]],b:[.5,.65]},
+      {p:[[.3,.35],[.7,.35],[.7,.65],[.3,.65],[.45,.55],[.5,.58]],b:[.3,.65]},
+      {p:[[.3,.35],[.7,.35],[.7,.65],[.3,.65],[.4,.55],[.45,.5]], b:[.3,.5]},
+      {p:[[.3,.35],[.7,.35],[.7,.65],[.3,.65],[.4,.45],[.5,.5]],  b:[.3,.35]}
+    ]
+  },
+
+  /* ----- Gardien ----- */
+  {
+    name:"Sortie aérienne", category:'goalkeeper', level:'medium', age:"U11 à U13",
+    gear:[['minigoal',.5,.12],['cone',.2,.4]],
+    consignes:[
+      "Un joueur centre depuis le côté (sur le plot).",
+      "Le gardien évalue la trajectoire, décide de sortir.",
+      "Sortie en courant, sauter pour prendre le ballon à 2 mains au plus haut.",
+      "Crier 'GARDIEN !' pour avertir les défenseurs.",
+      "Si trop loin, rester sur la ligne plutôt que sortir à moitié."
+    ],
+    variantes:"Centre fort tendu • centre lobé • avec attaquants pour la pression.",
+    labels:['G','C'],
+    colors:['var(--accent)','var(--home)'],
+    anim:[
+      {p:[[.5,.18],[.2,.45]], b:[.2,.45]},
+      {p:[[.5,.18],[.2,.4]],  b:[.2,.4]},
+      {p:[[.5,.18],[.2,.4]],  b:[.25,.3]},
+      {p:[[.5,.2],[.2,.4]],   b:[.3,.25]},
+      {p:[[.45,.22],[.2,.4]], b:[.35,.22]},
+      {p:[[.4,.22],[.2,.4]],  b:[.4,.2]},
+      {p:[[.4,.2],[.2,.4]],   b:[.42,.2]},
+      {p:[[.42,.2],[.2,.4]],  b:[.42,.2]},
+      {p:[[.45,.22],[.2,.4]], b:[.45,.22]}
+    ]
+  },
+  {
+    name:"Travail des appuis", category:'goalkeeper', level:'easy', age:"U7 à U13",
+    gear:[['minigoal',.5,.12],['cone',.35,.22],['cone',.65,.22]],
+    consignes:[
+      "Le gardien se déplace en pas chassés entre les 2 plots, devant le but.",
+      "Garder une position de gardien : genoux fléchis, mains prêtes.",
+      "Ne jamais croiser les pieds : pas chassés latéraux uniquement.",
+      "Le coach peut envoyer des ballons aléatoirement pendant le déplacement.",
+      "Exercice de base, idéal pour l'échauffement du gardien."
+    ],
+    variantes:"Avec ballons tirés faiblement • plus rapide • étirer la distance entre plots.",
+    labels:['G'],
+    colors:['var(--accent)'],
+    anim:[
+      {p:[[.5,.2]], b:[.95,.95]},
+      {p:[[.45,.2]], b:[.95,.95]},
+      {p:[[.4,.2]],  b:[.95,.95]},
+      {p:[[.35,.2]], b:[.95,.95]},
+      {p:[[.4,.2]],  b:[.95,.95]},
+      {p:[[.5,.2]],  b:[.95,.95]},
+      {p:[[.55,.2]], b:[.95,.95]},
+      {p:[[.6,.2]],  b:[.95,.95]},
+      {p:[[.65,.2]], b:[.95,.95]},
+      {p:[[.6,.2]],  b:[.95,.95]},
+      {p:[[.5,.2]],  b:[.95,.95]}
+    ]
+  }
+];
+
+/* ============ Construction du modal entraînement ============ */
+const trainModal=document.getElementById('trainModal');
+const drillList=document.getElementById('drillList');
+const catFilterEl=document.getElementById('catFilter');
+const lvlFilterEl=document.getElementById('lvlFilter');
+let activeCat='all', activeLvl='all';
+
+// boutons de filtre catégorie
+function buildCatFilter(){
+  catFilterEl.innerHTML='';
+  // Option "Tous"
+  const optAll=document.createElement('option');
+  optAll.value='all';optAll.textContent='📚  Toutes les catégories';
+  catFilterEl.appendChild(optAll);
+  // Option "Favoris"
+  const optFav=document.createElement('option');
+  optFav.value='favorites';optFav.textContent='⭐  Mes favoris';
+  catFilterEl.appendChild(optFav);
+  // Chaque catégorie
+  Object.entries(CATEGORIES).forEach(([key,info])=>{
+    const opt=document.createElement('option');
+    opt.value=key;opt.textContent=info.icon+'  '+info.name;
+    catFilterEl.appendChild(opt);
+  });
+  catFilterEl.value=activeCat;
+  catFilterEl.onchange=()=>{activeCat=catFilterEl.value;renderDrillList();};
+}
+function buildLvlFilter(){
+  lvlFilterEl.innerHTML='';
+  const all=document.createElement('button');all.className='tool';
+  all.style.cssText='flex:1;padding:5px;font-size:12px;justify-content:center';
+  all.textContent='Tous niveaux';
+  if(activeLvl==='all')all.classList.add('active');
+  all.onclick=()=>{activeLvl='all';buildLvlFilter();renderDrillList();};
+  lvlFilterEl.appendChild(all);
+  Object.entries(LEVELS).forEach(([key,info])=>{
+    const b=document.createElement('button');b.className='tool';
+    b.style.cssText='flex:1;padding:5px;font-size:12px;justify-content:center';
+    b.textContent=info.label;
+    if(activeLvl===key)b.classList.add('active');
+    b.onclick=()=>{activeLvl=key;buildLvlFilter();renderDrillList();};
+    lvlFilterEl.appendChild(b);
+  });
+}
+function renderDrillList(){
+  drillList.innerHTML='';
+  const all=getAllDrills();
+  const filtered=all
+    .map((d,i)=>({d,i}))
+    .filter(({d})=>{
+      if(activeCat==='favorites')return isFav(d) && (activeLvl==='all'||d.level===activeLvl);
+      return (activeCat==='all'||d.category===activeCat)&&(activeLvl==='all'||d.level===activeLvl);
+    });
+  if(!filtered.length){
+    const msg=activeCat==='favorites'
+      ? 'Aucun favori pour l\'instant. Touche l\'étoile ☆ à côté d\'un exercice pour l\'ajouter.'
+      : 'Aucun exercice avec ces filtres.';
+    drillList.innerHTML='<p style="text-align:center;opacity:.6;font-size:13px;padding:14px">'+msg+'</p>';
+    return;
+  }
+  // groupe par catégorie pour afficher des sections
+  const groups={};
+  filtered.forEach(item=>{(groups[item.d.category]=groups[item.d.category]||[]).push(item);});
+  Object.keys(CATEGORIES).forEach(catKey=>{
+    if(!groups[catKey])return;
+    const cat=CATEGORIES[catKey];
+    // en-tête de section
+    const h=document.createElement('div');
+    h.style.cssText='font-weight:bold;font-size:14px;color:var(--accent);padding:10px 4px 6px;border-bottom:2px solid #3a5240;margin:8px 0 6px;display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--panel-2);';
+    h.innerHTML=`<span style="font-size:20px">${cat.icon}</span> ${cat.name} <span style="font-size:11px;opacity:.6;font-weight:normal;margin-left:auto">${groups[catKey].length} exercice${groups[catKey].length>1?'s':''}</span>`;
+    drillList.appendChild(h);
+    groups[catKey].forEach(({d,i})=>{
+      const lvl=LEVELS[d.level];
+      const customMark=d.isCustom?'<span style="background:#ffd54f;color:#1a1a1a;padding:1px 5px;border-radius:6px;font-size:9px;font-weight:bold;margin-right:5px">⭐ PERSO</span>':'';
+      // Item cliquable (div au lieu de button pour pouvoir y inclure l'étoile cliquable)
+      const b=document.createElement('div');
+      b.className='tool';
+      b.style.cssText='width:100%;margin-bottom:6px;text-align:left;flex-direction:column;align-items:flex-start;padding:10px;gap:3px;cursor:pointer;background:#243a2a;color:var(--txt);border-radius:8px;font-weight:bold;font-size:13px;display:flex;border:none';
+      const fav=isFav(d);
+      b.innerHTML=
+        `<div style="display:flex;align-items:center;gap:8px;width:100%">
+          <span class="favStar" data-key="${drillFavKey(d).replace(/"/g,'&quot;')}" style="font-size:22px;cursor:pointer;padding:2px 4px;line-height:1;color:${fav?'#ffd54f':'#666'};flex-shrink:0">${fav?'★':'☆'}</span>
+          ${customMark}<span style="font-size:14px;font-weight:bold;flex:1">${d.name}</span>
+          <span style="font-size:10px;background:${lvl.color};color:#fff;padding:2px 7px;border-radius:10px;font-weight:bold">${lvl.label.replace(/^[🟢🟡🔴]\s*/,'')}</span>
+        </div>
+        <span style="font-size:11px;opacity:.7;font-weight:normal">${d.age}</span>`;
+      // Clic sur le corps : applique l'exercice
+      b.onclick=()=>applyDrill(i);
+      // Clic sur l'étoile : toggle favori (sans propagation)
+      const star=b.querySelector('.favStar');
+      star.addEventListener('click',(e)=>{
+        e.stopPropagation();
+        toggleFav(d);
+        const nowFav=isFav(d);
+        star.textContent=nowFav?'★':'☆';
+        star.style.color=nowFav?'#ffd54f':'#666';
+      });
+      drillList.appendChild(b);
+    });
+  });
+}
+
+document.getElementById('trainBtn').onclick=()=>{
+  buildCatFilter();buildLvlFilter();renderDrillList();
+  trainModal.style.display='flex';
+};
+document.getElementById('closeTrain').onclick=()=>{trainModal.style.display='none';};
+
+/* ============ Exercices personnels (création / édition) ============ */
+const CUSTOM_DRILLS_KEY='tactiqueFoot8_customDrills';
+function getCustomDrills(){try{return JSON.parse(localStorage.getItem(CUSTOM_DRILLS_KEY))||[];}catch(e){return [];}}
+function saveCustomDrills(arr){localStorage.setItem(CUSTOM_DRILLS_KEY,JSON.stringify(arr));cloudSetShared('customDrills',arr);}
+// Liste combinée utilisée pour l'affichage et l'application
+function getAllDrills(){return [...DRILLS, ...getCustomDrills()];}
+function isCustomDrillIdx(i){return i>=DRILLS.length;}
+
+// Renvoie le drill par son index dans la liste combinée
+function getDrillByIdx(i){return getAllDrills()[i];}
+
+let editingCustomDrillIdx=null; // index dans la liste custom, ou null pour création
+
+function openCreateDrillModal(prefill){
+  editingCustomDrillIdx=null;
+  document.getElementById('createDrillTitle').textContent=prefill?'✏️ Modifier l\'exercice':'➕ Créer un exercice';
+  document.getElementById('cdDelete').style.display=prefill?'inline-flex':'none';
+  // Remplit le select catégorie
+  const cs=document.getElementById('cdCategory');cs.innerHTML='';
+  Object.entries(CATEGORIES).forEach(([key,info])=>{
+    const opt=document.createElement('option');opt.value=key;opt.textContent=info.icon+' '+info.name;cs.appendChild(opt);
+  });
+  // Boutons niveau
+  const lvlBox=document.getElementById('cdLevel');lvlBox.innerHTML='';
+  const lvlKeys=Object.keys(LEVELS);let selectedLvl=prefill?prefill.level:'medium';
+  function paintLvl(){
+    [...lvlBox.children].forEach(c=>c.classList.toggle('active',c.dataset.lvl===selectedLvl));
+  }
+  lvlKeys.forEach(k=>{
+    const lvl=LEVELS[k];
+    const b=document.createElement('button');b.className='tool';b.dataset.lvl=k;
+    b.style.cssText='flex:1;justify-content:center;font-size:13px;padding:8px';
+    b.style.background=lvl.color;b.style.color='#fff';
+    b.textContent=lvl.label;
+    b.onclick=()=>{selectedLvl=k;paintLvl();};
+    lvlBox.appendChild(b);
+  });
+  paintLvl();
+  // Pré-remplit en mode édition
+  document.getElementById('cdName').value=prefill?prefill.name:'';
+  document.getElementById('cdCategory').value=prefill?prefill.category:'warmup';
+  document.getElementById('cdAge').value=prefill?prefill.age:'U9 à U13';
+  document.getElementById('cdConsignes').value=prefill?prefill.consignes.join('\n'):'';
+  document.getElementById('cdVariantes').value=prefill?prefill.variantes:'';
+  document.getElementById('cdCaptureGear').checked=!prefill;
+  document.getElementById('cdCaptureAnim').checked=false;
+  // Si on édite, on stocke l'index original
+  if(prefill){editingCustomDrillIdx=prefill._customIdx;}
+  // Stocke la sélection de niveau dans une closure accessible
+  document.getElementById('cdSave').onclick=()=>saveCustomDrill(selectedLvl);
+  document.getElementById('cdDelete').onclick=()=>{
+    if(editingCustomDrillIdx===null)return;
+    if(!confirm('Supprimer cet exercice perso ?'))return;
+    const arr=getCustomDrills();arr.splice(editingCustomDrillIdx,1);saveCustomDrills(arr);
+    document.getElementById('createDrillModal').style.display='none';
+    renderDrillList();
+  };
+  document.getElementById('createDrillModal').style.display='flex';
+}
+function saveCustomDrill(selectedLvl){
+  const name=document.getElementById('cdName').value.trim();
+  if(!name){alert('Donne un nom à ton exercice.');return;}
+  const consignesRaw=document.getElementById('cdConsignes').value.trim();
+  const consignes=consignesRaw?consignesRaw.split('\n').map(s=>s.trim()).filter(s=>s):[];
+  if(!consignes.length){alert('Ajoute au moins une consigne.');return;}
+  const drill={
+    name,
+    category:document.getElementById('cdCategory').value,
+    level:selectedLvl,
+    age:document.getElementById('cdAge').value.trim()||'U9 à U13',
+    consignes,
+    variantes:document.getElementById('cdVariantes').value.trim()||'(aucune)',
+    isCustom:true,
+    createdAt:Date.now()
+  };
+  // Capture matériel actuel
+  if(document.getElementById('cdCaptureGear').checked && gear.length){
+    drill.gear=gear.map(g=>{
+      const arr=[g.type, g.x/W, g.y/H];
+      if(g.w)arr.push(g.w);
+      if(g.h)arr.push(g.h);
+      return arr;
+    });
+  } else {
+    drill.gear=[];
+  }
+  // Capture étapes (animation)
+  if(document.getElementById('cdCaptureAnim').checked && frames.length>=2){
+    drill.anim=frames.map(f=>({
+      p:f.players.map(p=>[p.x/W, p.y/H]),
+      b:[f.ball.x/W, f.ball.y/H],
+      away:(f.away||[]).map(p=>[p.x/W, p.y/H]),
+      note:f.note
+    }));
+    // Capture aussi les couleurs et labels
+    if(frames[0].players.length){
+      drill.colors=frames[0].players.map(p=>p.color||HOME);
+      drill.labels=frames[0].players.map(p=>p.label);
+    }
+  }
+  // Sauvegarde
+  const arr=getCustomDrills();
+  if(editingCustomDrillIdx!==null){
+    // Édition : conserve l'ancien createdAt
+    drill.createdAt=arr[editingCustomDrillIdx].createdAt||Date.now();
+    arr[editingCustomDrillIdx]=drill;
+  } else {
+    arr.push(drill);
+  }
+  saveCustomDrills(arr);
+  document.getElementById('createDrillModal').style.display='none';
+  renderDrillList();
+  alert('« '+name+' » enregistré ✅');
+}
+document.getElementById('createDrillBtn').onclick=()=>openCreateDrillModal(null);
+document.getElementById('closeCreateDrill').onclick=()=>document.getElementById('createDrillModal').style.display='none';
+
+/* ============ Favoris (étoile par exercice) ============ */
+const FAV_KEY='tactiqueFoot8_favorites';
+function getFavorites(){try{return new Set(JSON.parse(localStorage.getItem(FAV_KEY)||'[]'));}catch(e){return new Set();}}
+function saveFavorites(set){localStorage.setItem(FAV_KEY,JSON.stringify([...set]));cloudSetTeam('favorites',[...set]);}
+function drillFavKey(d){return d.category+'::'+d.name;}
+function isFav(d){return getFavorites().has(drillFavKey(d));}
+function toggleFav(d){
+  const favs=getFavorites();
+  const key=drillFavKey(d);
+  if(favs.has(key))favs.delete(key);else favs.add(key);
+  saveFavorites(favs);
+}
+
+/* ============ Application d'un exercice (avec sélecteur de difficulté) ============ */
+function applyDrill(i){
+  const all=getAllDrills();
+  const d=all[i];
+  if(!d)return;
+  applyDrillData(d, d.level);
+}
+// Charge effectivement les données sur le terrain et affiche la fiche
+function applyDrillData(d, displayLevel){
+  // place le matériel
+  gear=(d.gear||[]).filter(g=>!(d.anim&&g[0]==='ball')).map(g=>{
+    const item={type:g[0],x:g[1]*W,y:g[2]*H};
+    if(g[0]==='zone'&&g[3])item.w=g[3];
+    if(g[0]==='zone'&&g[4])item.h=g[4];
+    return item;
+  });
+  if(d.anim){
+    frames=d.anim.map(stp=>({
+      players:stp.p.map((pos,j)=>({
+        id:j,
+        x:pos[0]*W, y:pos[1]*H,
+        color:(d.colors&&d.colors[j])||HOME,
+        label:(d.labels&&d.labels[j])||String(j+1)
+      })),
+      away:(stp.away||[]).map((pos,j)=>({
+        x:pos[0]*W, y:pos[1]*H,
+        label:(d.labelsAway&&d.labelsAway[j])||String(j+1)
+      })),
+      ball:{x:stp.b[0]*W, y:stp.b[1]*H},
+      note:stp.note
+    }));
+  }else{
+    frames=[{players:[],away:[],ball:{x:W/2,y:H*0.5}}];
+  }
+  arrows=[];curFrame=0;
+  gearType=null;setMode('move');
+  renderFrameBar();render();
+  // Affiche la fiche avec le sélecteur de difficulté
+  showDrillFiche(d, displayLevel);
+}
+function showDrillFiche(d, displayLevel){
+  const cat=CATEGORIES[d.category], lvl=LEVELS[displayLevel||d.level];
+  const customBadge=d.isCustom?'<span style="background:#ffd54f;color:#1a1a1a;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:6px">⭐ PERSO</span>':'';
+  document.getElementById('drillTitle').innerHTML=`${cat.icon} ${d.name}${customBadge}`;
+  // Sélecteur de difficulté
+  let levelSelector='<div style="display:flex;gap:5px;margin-bottom:10px">';
+  Object.entries(LEVELS).forEach(([key,info])=>{
+    const isActive=(displayLevel||d.level)===key;
+    const isNatural=d.level===key;
+    levelSelector+=`<button onclick="switchDrillLevel('${key}')" style="flex:1;padding:7px;border-radius:6px;border:none;font-weight:bold;font-size:12px;cursor:pointer;background:${isActive?info.color:'#243a2a'};color:${isActive?'#fff':'#bbb'};border:2px solid ${isNatural?info.color:'transparent'}">${info.label}${isNatural?' ✓':''}</button>`;
+  });
+  levelSelector+='</div><p style="font-size:10px;opacity:.6;margin:-6px 0 8px;text-align:center">Le niveau ✓ est celui pour lequel l\'exercice a été conçu.</p>';
+  // Adaptation textuelle si on regarde un niveau différent du niveau naturel
+  let adaptationNote='';
+  if(displayLevel && displayLevel!==d.level){
+    const direction=Object.keys(LEVELS).indexOf(displayLevel) < Object.keys(LEVELS).indexOf(d.level)?'plus simple':'plus exigeant';
+    const tip=displayLevel==='easy'
+      ? 'Ralentir le rythme, espacer le matériel, retirer les contraintes (pas de défenseur, plus de touches, plus de temps).'
+      : displayLevel==='medium'
+      ? 'Utiliser l\'exercice tel qu\'il est conçu, en s\'assurant que les enfants enchaînent correctement.'
+      : 'Accélérer le rythme, raccourcir les distances, ajouter un défenseur, limiter à une touche, chronométrer.';
+    adaptationNote=`<p style="margin:0 0 8px;background:#3a2a14;padding:8px 10px;border-radius:6px;font-size:12px"><b>📝 Adaptation ${direction} :</b> ${tip}<br><span style="font-size:11px;opacity:.8">Voir les « Variantes » ci-dessous pour des idées concrètes.</span></p>`;
+  }
+  const animNote=d.anim
+    ? `<p style="margin:12px 0 0;font-size:12px;background:#1d3324;padding:8px 10px;border-radius:8px">🎬 <b>Animation prête !</b> Ferme cette fiche et appuie sur <b>▶ Animer</b> en bas.</p>`
+    : `<p style="margin:12px 0 0;font-size:11px;opacity:.7">💡 Le matériel est posé. Tu peux ajouter des joueurs et des flèches.</p>`;
+  const editBtn=d.isCustom?`<button onclick="editCurrentCustom()" style="width:100%;padding:8px;margin-top:8px;border:none;border-radius:6px;background:#4a2c6b;color:#fff;cursor:pointer;font-weight:bold">✏️ Modifier cet exercice</button>`:'';
+  document.getElementById('drillBody').innerHTML=
+    levelSelector+
+    `<p style="margin:0 0 8px"><span style="background:${lvl.color};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold">${lvl.label}</span> &nbsp; <b>${cat.name}</b> — ${d.age}</p>`+
+    adaptationNote+
+    `<b>Déroulement :</b><ol style="margin:6px 0 10px;padding-left:18px">${d.consignes.map(c=>`<li style="margin-bottom:4px">${c}</li>`).join('')}</ol>`+
+    `<b>Variantes :</b><p style="margin:4px 0 0">${d.variantes}</p>`+
+    editBtn+
+    animNote;
+  // Mémorise quel drill on visualise pour les boutons inline
+  window._currentDrill=d;
+  window._currentDrillLevel=displayLevel||d.level;
+  trainModal.style.display='none';
+  const dm=document.getElementById('drillModal');dm.style.display='flex';
+  let playNow=document.getElementById('drillPlayNow');
+  if(d.anim){
+    if(!playNow){
+      playNow=document.createElement('button');playNow.id='drillPlayNow';
+      playNow.style.cssText='width:100%;padding:11px;border:none;border-radius:8px;background:#2e7d32;color:#fff;font-weight:bold;cursor:pointer;margin-top:8px;font-size:15px;';
+      const closeBtn=document.getElementById('closeDrill');
+      closeBtn.parentNode.insertBefore(playNow,closeBtn);
+    }
+    playNow.style.display='block';
+    playNow.textContent='▶ Voir l\'animation';
+    playNow.onclick=()=>{dm.style.display='none';document.getElementById('playBtn').click();};
+  }else if(playNow){playNow.style.display='none';}
+}
+window.switchDrillLevel=(level)=>{
+  if(window._currentDrill)showDrillFiche(window._currentDrill, level);
+};
+window.editCurrentCustom=()=>{
+  const d=window._currentDrill;if(!d||!d.isCustom)return;
+  const arr=getCustomDrills();
+  const idx=arr.findIndex(x=>x.createdAt===d.createdAt&&x.name===d.name);
+  if(idx<0){alert('Exercice introuvable.');return;}
+  d._customIdx=idx;
+  document.getElementById('drillModal').style.display='none';
+  openCreateDrillModal(d);
+};
+document.getElementById('closeDrill').onclick=()=>document.getElementById('drillModal').style.display='none';
+
+/* ============ Bouton Vider le terrain ============ */
+document.getElementById('clearBtn').onclick=()=>{
+  if(!confirm('Vider complètement le terrain ?\n(joueurs, adversaires, matériel, flèches et étapes seront effacés)'))return;
+  frames=[{players:[],away:[],ball:{x:W/2,y:H*0.5}}];
+  arrows=[];gear=[];curFrame=0;gearType=null;
+  setMode('move');renderFrameBar();render();
+};
+
+
+/* ============ Export image PNG ============ */
+document.getElementById('exportImgBtn').onclick=()=>{
+  // Sérialise le SVG du terrain en image PNG via canvas
+  const svgEl=document.getElementById('pitch');
+  // On clone, on inline le style background et on convertit les variables CSS en couleurs réelles
+  const clone=svgEl.cloneNode(true);
+  const bgVal=BOARD_STYLES[boardStyleIdx];
+  // Pour PNG il faut un fond explicite (canvas est transparent par défaut). On l'ajoute via rect.
+  // On utilise simplement la couleur unie associée, ou le gradient simplifié.
+  const ns='http://www.w3.org/2000/svg';
+  const bgRect=document.createElementNS(ns,'rect');
+  bgRect.setAttribute('x','0');bgRect.setAttribute('y','0');
+  bgRect.setAttribute('width',W);bgRect.setAttribute('height',H);
+  bgRect.setAttribute('fill',bgVal.key==='grass'?'#3a8b3f':(bgVal.bg.startsWith('#')?bgVal.bg:'#356638'));
+  clone.insertBefore(bgRect,clone.firstChild);
+  // Remplace var(--xxx) par les vraies couleurs
+  let s=new XMLSerializer().serializeToString(clone);
+  s=s.replace(/var\(--accent\)/g,'#ffd54f')
+     .replace(/var\(--home\)/g,'#1565c0')
+     .replace(/var\(--away\)/g,'#c62828')
+     .replace(/var\(--line\)/g,'rgba(255,255,255,0.85)');
+  const blob=new Blob([s],{type:'image/svg+xml;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const img=new Image();
+  img.onload=()=>{
+    const cv=document.createElement('canvas');
+    cv.width=W*2;cv.height=H*2; // x2 pour HD
+    const ctx=cv.getContext('2d');
+    ctx.fillStyle=bgVal.key==='grass'?'#3a8b3f':(bgVal.bg.startsWith('#')?bgVal.bg:'#356638');
+    ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.drawImage(img,0,0,cv.width,cv.height);
+    URL.revokeObjectURL(url);
+    cv.toBlob(b=>{
+      const a=document.createElement('a');
+      const dt=new Date(),pad=n=>String(n).padStart(2,'0');
+      const fname='tactique_'+dt.getFullYear()+pad(dt.getMonth()+1)+pad(dt.getDate())+'_'+pad(dt.getHours())+pad(dt.getMinutes())+'.png';
+      a.href=URL.createObjectURL(b);a.download=fname;a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+    },'image/png');
+  };
+  img.onerror=()=>{alert('Échec de l\'export. Réessaie ou utilise une capture d\'écran.');URL.revokeObjectURL(url);};
+  img.src=url;
+};
+
+/* ============ Style du terrain (rayé / uni / tableau noir) ============ */
+const BOARD_STYLES=[
+  {key:'grass', label:'🌱 Pelouse rayée', bg:'repeating-linear-gradient(90deg,#2e7d32 0 9.09%,#43a047 9.09% 18.18%)'},
+  {key:'plain', label:'🟢 Vert uni',       bg:'#356638'},
+  {key:'black', label:'⬛ Tableau noir',   bg:'#0d1612'},
+  {key:'blue',  label:'🔵 Tableau bleu',  bg:'#0d1f33'}
+];
+let boardStyleIdx=0;
+function applyBoardStyle(){
+  const s=BOARD_STYLES[boardStyleIdx];
+  document.getElementById('pitch').style.background=s.bg;
+  const btn=document.getElementById('boardBtn');
+  btn.querySelector('.ico').textContent=s.label.match(/^(\S+)/)[1];
+  btn.querySelector('.label').textContent=s.label.replace(/^\S+\s*/,'');
+}
+document.getElementById('boardBtn').onclick=()=>{
+  boardStyleIdx=(boardStyleIdx+1)%BOARD_STYLES.length;
+  applyBoardStyle();
+};
+
+/* ============ Plein écran ============ */
+function toggleFullscreen(){
+  document.body.classList.toggle('fullscreen');
+  // En plein écran, les barres sont cachées par défaut. Le bouton ☰ permet de les afficher.
+  document.body.classList.remove('bars-visible');
+  if(document.body.classList.contains('fullscreen')){
+    const el=document.documentElement;
+    if(el.requestFullscreen)el.requestFullscreen().catch(()=>{});
+    else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen();
+  }else{
+    if(document.exitFullscreen&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+    else if(document.webkitExitFullscreen&&document.webkitFullscreenElement)document.webkitExitFullscreen();
+  }
+  setTimeout(resize,50);
+}
+document.getElementById('fsBtn').onclick=toggleFullscreen;
+// Bouton ☰ : affiche / masque les barres en mode plein écran
+document.getElementById('fsToggle').onclick=()=>{
+  document.body.classList.toggle('bars-visible');
+  setTimeout(resize,50);
+};
+
+/* ============ Init ============ */
+resize();renderFrameBar();render();
+initTeamSelector();
+// Démarrage des écouteurs cloud (temps réel entre coachs)
+cloudListenShared('customDrills','tactiqueFoot8_customDrills',()=>{if(typeof renderDrillList==='function')renderDrillList();});
+cloudListenShared('saves','tactiqueFoot8_saves');
+cloudListenShared('sessions','tactiqueFoot8_sessions');
+cloudListenTeam();
+
+/* ============ PWA Service Worker ============ */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
