@@ -207,7 +207,7 @@
         <button class="tool" id="sessionBtn"><span class="ico">📚</span><span class="label">Mes séances</span></button>
         <button class="tool" id="trainBtn"><span class="ico">🏃</span><span class="label">Entraînement</span></button>
         <button class="tool" id="formationBtn"><span class="ico">📋</span><span class="label">Formation</span></button>
-        <button class="tool" id="rosterBtn"><span class="ico">👥</span><span class="label">Mon équipe</span></button>
+        <button class="tool" id="rosterBtn"><span class="ico">👥</span><span class="label">Joueurs</span></button>
       </div>
     </div>
 
@@ -309,15 +309,15 @@
 
 <!-- Modale Mon équipe (gestion liste de joueurs) -->
 <div class="modal-bg" id="rosterModal">
-  <div class="modal" style="width:380px;max-width:95vw">
-    <h3>👥 Mon équipe</h3>
-    <p style="font-size:12px;margin:-4px 0 10px;opacity:.8">Saisis le prénom de chaque joueur. Tu pourras ensuite afficher les prénoms à la place des numéros sur le terrain.</p>
-    <div id="rosterList" style="max-height:320px;overflow-y:auto;margin-bottom:10px"></div>
+  <div class="modal" style="width:440px;max-width:95vw">
+    <h3>👥 Gestion des joueurs</h3>
+    <p style="font-size:12px;margin:-4px 0 10px;opacity:.8">Tous les joueurs du club. Change l'équipe d'un joueur en modifiant le sélecteur à côté de son nom.</p>
+    <div id="rosterList" style="max-height:380px;overflow-y:auto;margin-bottom:10px"></div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
-      <button class="tool" id="rosterAdd" style="flex:1;justify-content:center">➕ Ajouter un joueur</button>
+      <button class="tool" id="rosterAdd" style="flex:1;justify-content:center;background:#2e7d32">➕ Ajouter un joueur</button>
     </div>
     <div style="display:flex;gap:6px">
-      <button class="tool" id="applyRoster" style="flex:1;justify-content:center;background:#2e7d32">Afficher les prénoms</button>
+      <button class="tool" id="applyRoster" style="flex:1;justify-content:center;background:#1565c0">Prénoms sur le terrain</button>
       <button class="tool" id="resetRoster" style="flex:1;justify-content:center">Remettre les numéros</button>
     </div>
     <button id="closeRoster" style="margin-top:8px">Fermer</button>
@@ -1455,57 +1455,139 @@ document.getElementById('sessionRunnerClose').onclick=()=>{
 };
 
 
-/* ============ Mon équipe (liste de joueurs) ============ */
-const ROSTER_KEY='tactiqueFoot8_roster';
-function getRoster(){try{return JSON.parse(localStorage.getItem(ROSTER_KEY))||[];}catch(e){return [];}}
-function saveRoster(r){localStorage.setItem(ROSTER_KEY,JSON.stringify(r));cloudSetTeam('roster',r);}
+/* ============ Gestion centralisée des joueurs ============ */
+const ALL_PLAYERS_KEY='tactiqueFoot8_allPlayers';
+const ROSTER_KEY='tactiqueFoot8_roster'; // gardé pour compat
+
+// Liste complète de tous les joueurs du club
+function getAllPlayers(){try{return JSON.parse(localStorage.getItem(ALL_PLAYERS_KEY))||[];}catch(e){return [];}}
+function saveAllPlayers(arr){
+  localStorage.setItem(ALL_PLAYERS_KEY,JSON.stringify(arr));
+  cloudSetShared('allPlayers',arr);
+  // Met aussi à jour le roster local pour compat avec les fonctions existantes
+  const teamPlayers=arr.filter(p=>p.team===currentTeamId).map(p=>p.name);
+  localStorage.setItem(ROSTER_KEY,JSON.stringify(teamPlayers));
+}
+// Fonction de compat : retourne la liste de prénoms de l'équipe courante
+function getRoster(){
+  const all=getAllPlayers();
+  return all.filter(p=>p.team===currentTeamId).map(p=>p.name).filter(n=>n&&n.trim());
+}
+function saveRoster(r){/* compat : ne fait rien, on utilise saveAllPlayers */}
+
+// Couleurs par équipe pour le visuel
+const TEAM_COLORS={equipe1:'#1565c0',equipe2:'#c62828',equipe3:'#2e7d32'};
 
 function renderRosterList(){
   const list=document.getElementById('rosterList');
-  const roster=getRoster();
-  if(!roster.length){
-    list.innerHTML='<p style="text-align:center;opacity:.6;font-size:13px;padding:14px">Aucun joueur. Clique « Ajouter » pour commencer.</p>';
+  const players=getAllPlayers();
+  list.innerHTML='';
+
+  if(!players.length){
+    list.innerHTML='<p style="text-align:center;opacity:.6;font-size:13px;padding:18px">Aucun joueur enregistré.<br>Clique « ➕ Ajouter » ci-dessous.</p>';
     return;
   }
-  list.innerHTML='';
-  roster.forEach((name,i)=>{
-    const row=document.createElement('div');
-    row.style.cssText='display:flex;gap:6px;align-items:center;margin-bottom:5px;background:#1d2a22;padding:6px 8px;border-radius:6px';
-    row.innerHTML=`
-      <span style="font-weight:bold;color:var(--accent);min-width:24px">${i+1}.</span>
-      <input type="text" value="${name.replace(/"/g,'&quot;')}" data-idx="${i}" style="flex:1;padding:6px;border:1px solid #3a5240;background:#0f1c14;color:#fff;border-radius:4px;font-size:13px" placeholder="Prénom">
-      <button class="tool" data-del="${i}" style="background:#5a2222;padding:5px 8px">🗑</button>
-    `;
-    list.appendChild(row);
+
+  // Regroupe par équipe + "non assigné"
+  const groups={};
+  TEAMS_LIST.forEach(t=>{groups[t.id]=[];});
+  groups['none']=[];
+  players.forEach((p,i)=>{
+    const g=groups[p.team]||groups['none'];
+    g.push({...p, _idx:i});
   });
-  // saisie en direct
-  list.querySelectorAll('input').forEach(inp=>{
-    inp.oninput=()=>{const r=getRoster();r[+inp.dataset.idx]=inp.value;saveRoster(r);};
-  });
-  list.querySelectorAll('[data-del]').forEach(b=>{
-    b.onclick=()=>{const r=getRoster();r.splice(+b.dataset.del,1);saveRoster(r);renderRosterList();};
+
+  // Affiche chaque groupe
+  const allGroups=[...TEAMS_LIST.map(t=>({id:t.id,name:t.name,color:TEAM_COLORS[t.id]||'#555'})),{id:'none',name:'Non assigné',color:'#555'}];
+  allGroups.forEach(grp=>{
+    const items=groups[grp.id];
+    // En-tête de l'équipe
+    const header=document.createElement('div');
+    header.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 6px 4px;border-bottom:2px solid '+grp.color+';margin:10px 0 6px;';
+    header.innerHTML=`<span style="width:14px;height:14px;border-radius:50%;background:${grp.color};flex-shrink:0"></span><span style="font-weight:bold;font-size:14px;flex:1">${grp.name}</span><span style="font-size:11px;opacity:.6">${items.length} joueur${items.length>1?'s':''}</span>`;
+    list.appendChild(header);
+
+    if(!items.length){
+      const empty=document.createElement('div');
+      empty.style.cssText='padding:6px 12px;font-size:12px;opacity:.5;font-style:italic';
+      empty.textContent='Aucun joueur dans cette équipe';
+      list.appendChild(empty);
+    }
+
+    items.forEach(p=>{
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;gap:5px;align-items:center;margin-bottom:4px;background:#1d2a22;padding:6px 8px;border-radius:6px';
+
+      // Nom (éditable)
+      const nameInput=document.createElement('input');
+      nameInput.type='text';nameInput.value=p.name||'';
+      nameInput.placeholder='Prénom';
+      nameInput.style.cssText='flex:1;padding:6px;border:1px solid #3a5240;background:#0f1c14;color:#fff;border-radius:4px;font-size:13px;min-width:0';
+      nameInput.oninput=()=>{
+        const all=getAllPlayers();
+        all[p._idx].name=nameInput.value;
+        saveAllPlayers(all);
+      };
+
+      // Sélecteur d'équipe
+      const teamSel=document.createElement('select');
+      teamSel.style.cssText='padding:5px 4px;background:#4a1a6b;color:#fff;border:1px solid #7e57c2;border-radius:4px;font-size:11px;font-weight:bold;flex-shrink:0;cursor:pointer';
+      TEAMS_LIST.forEach(t=>{
+        const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.name;
+        teamSel.appendChild(opt);
+      });
+      const optNone=document.createElement('option');optNone.value='none';optNone.textContent='—';
+      teamSel.appendChild(optNone);
+      teamSel.value=p.team||'none';
+      teamSel.onchange=()=>{
+        const all=getAllPlayers();
+        all[p._idx].team=teamSel.value==='none'?'':teamSel.value;
+        saveAllPlayers(all);
+        renderRosterList(); // re-render pour le déplacer dans la bonne section
+      };
+
+      // Bouton supprimer
+      const delBtn=document.createElement('button');
+      delBtn.className='tool';delBtn.textContent='🗑';
+      delBtn.style.cssText='background:#5a2222;padding:5px 8px;flex-shrink:0';
+      delBtn.onclick=()=>{
+        const all=getAllPlayers();
+        all.splice(p._idx,1);
+        saveAllPlayers(all);
+        renderRosterList();
+      };
+
+      row.appendChild(nameInput);
+      row.appendChild(teamSel);
+      row.appendChild(delBtn);
+      list.appendChild(row);
+    });
   });
 }
+
 document.getElementById('rosterBtn').onclick=()=>{renderRosterList();document.getElementById('rosterModal').style.display='flex';};
 document.getElementById('closeRoster').onclick=()=>document.getElementById('rosterModal').style.display='none';
 document.getElementById('rosterAdd').onclick=()=>{
-  const r=getRoster();r.push('');saveRoster(r);renderRosterList();
-  // focus sur le nouveau
-  setTimeout(()=>{const inps=document.querySelectorAll('#rosterList input');if(inps.length)inps[inps.length-1].focus();},30);
+  const all=getAllPlayers();
+  all.push({name:'', team:currentTeamId, id:Date.now()});
+  saveAllPlayers(all);
+  renderRosterList();
+  setTimeout(()=>{
+    const inps=document.querySelectorAll('#rosterList input[type="text"]');
+    if(inps.length)inps[inps.length-1].focus();
+  },50);
 };
 document.getElementById('applyRoster').onclick=()=>{
-  const r=getRoster().filter(n=>n&&n.trim());
-  if(!r.length){alert('La liste de joueurs est vide. Ajoute d\'abord des prénoms.');return;}
-  // Si exactement 8 prénoms : 1er = gardien, les 7 autres = joueurs de champ.
-  // Sinon : on garde "G" pour le gardien et on attribue les prénoms aux joueurs de champ dans l'ordre.
+  const r=getRoster();
+  if(!r.length){alert('Aucun joueur dans cette équipe. Ajoute des joueurs d\'abord.');return;}
   const eightPlayers=r.length>=8;
   frames.forEach(f=>{
     f.players.forEach((p,i)=>{
       let name;
       if(eightPlayers){
-        name=r[i]; // 0=G (prénom du gardien), 1..7=champ
+        name=r[i];
       } else {
-        if(i===0)return; // gardien garde "G"
+        if(i===0)return;
         name=r[i-1];
       }
       if(name){
@@ -1524,6 +1606,9 @@ document.getElementById('resetRoster').onclick=()=>{
   render();
   document.getElementById('rosterModal').style.display='none';
 };
+
+// Écoute des changements cloud pour la liste de joueurs
+cloudListenShared('allPlayers',ALL_PLAYERS_KEY);
 
 /* ============ Formations ============ */
 document.getElementById('formationBtn').onclick=()=>document.getElementById('formModal').style.display='flex';
