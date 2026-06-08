@@ -1571,6 +1571,9 @@ function renderRosterList(){
   const list=document.getElementById('rosterList');
   let players=getAllPlayers();
   if(rosterViewTeam!=='all')players=players.filter(p=>p.team===rosterViewTeam);
+  // Tri par poste : G → DG → DC → DD → MG → MC → MD → AG → AD → AC
+  const posOrder={G:0,DG:1,DC:2,DD:3,MG:4,MC:5,MD:6,AG:7,AD:8,AC:9};
+  players.sort((a,b)=>(posOrder[a.position]??5)-(posOrder[b.position]??5));
   list.innerHTML='';
 
   if(!players.length){
