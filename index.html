@@ -261,6 +261,12 @@
     <button class="tool" data-form="2-3-2" style="width:100%;margin-bottom:6px;justify-content:center">2 - 3 - 2 (offensif)</button>
     <button class="tool" data-form="3-2-2" style="width:100%;margin-bottom:6px;justify-content:center">3 - 2 - 2</button>
     <button class="tool" data-form="2-1-3-1" style="width:100%;margin-bottom:6px;justify-content:center">2 - 1 - 3 - 1</button>
+    <div style="border-top:2px solid #3a5240;margin:12px 0 10px;padding-top:10px">
+      <p style="font-size:12px;opacity:.7;margin:0 0 8px">Formation de ton équipe (les joueurs se placent selon leur poste G/D/M/A) :</p>
+      <button class="tool" id="placeTeamBtn" style="width:100%;margin-bottom:6px;justify-content:center;background:#1565c0">⚽ Placer les joueurs</button>
+      <button class="tool" id="saveTeamFormBtn" style="width:100%;margin-bottom:6px;justify-content:center;background:#2e7d32">💾 Sauver cette formation</button>
+      <p id="formTeamName" style="text-align:center;font-size:11px;opacity:.6;margin:0"></p>
+    </div>
     <button id="closeForm">Fermer</button>
   </div>
 </div>
@@ -520,6 +526,7 @@ function cloudListenTeam(onUpdate){
         const d=snap.data();
         if(d.roster)localStorage.setItem('tactiqueFoot8_roster', JSON.stringify(d.roster));
         if(d.favorites)localStorage.setItem('tactiqueFoot8_favorites', JSON.stringify(d.favorites));
+        if(d.formation)localStorage.setItem('tactiqueFoot8_formation_'+currentTeamId, JSON.stringify(d.formation));
         if(onUpdate)onUpdate(d);
       }
     });
@@ -538,9 +545,10 @@ function initTeamSelector(){
   sel.onchange=()=>{
     currentTeamId=sel.value;
     localStorage.setItem('tactiqueFoot8_team', currentTeamId);
-    // Recharge les données de l'équipe depuis le cloud
+    // Charge la formation de la nouvelle équipe
+    switchTeam();
+    // Écoute les changements cloud de la nouvelle équipe
     cloudListenTeam();
-    // Re-render si des données de roster/favoris changent
     if(typeof renderDrillList==='function')renderDrillList();
   };
 }
@@ -1529,9 +1537,23 @@ function renderRosterList(){
         saveAllPlayers(all);
       };
 
-      // Ligne du bas : sélecteur d'équipe + supprimer
+      // Ligne du bas : poste + sélecteur d'équipe + supprimer
       const bottomRow=document.createElement('div');
       bottomRow.style.cssText='display:flex;gap:5px;align-items:center;width:100%';
+
+      // Sélecteur de poste
+      const posSel=document.createElement('select');
+      posSel.style.cssText='padding:8px;background:#1a3a20;color:#fff;border:2px solid #4caf50;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;flex-shrink:0';
+      [{v:'G',l:'🧤 G'},{v:'D',l:'🛡 D'},{v:'M',l:'⚙ M'},{v:'A',l:'⚡ A'}].forEach(o=>{
+        const opt=document.createElement('option');opt.value=o.v;opt.textContent=o.l;
+        posSel.appendChild(opt);
+      });
+      posSel.value=p.position||'M';
+      posSel.onchange=()=>{
+        const all=getAllPlayers();
+        all[p._idx].position=posSel.value;
+        saveAllPlayers(all);
+      };
 
       // Sélecteur d'équipe
       const teamSel=document.createElement('select');
@@ -1615,8 +1637,95 @@ document.getElementById('resetRoster').onclick=()=>{
 // Écoute des changements cloud pour la liste de joueurs
 cloudListenShared('allPlayers',ALL_PLAYERS_KEY);
 
+/* ============ Placement automatique et formation par équipe ============ */
+// Place les joueurs de l'équipe courante sur le terrain selon leur poste
+function autoPlaceTeamOnField(){
+  const teamPlayers=getAllPlayers().filter(p=>p.team===currentTeamId && p.name && p.name.trim());
+  if(!teamPlayers.length)return;
+  // Trie par poste : G → D → M → A
+  const order={G:0,D:1,M:2,A:3};
+  teamPlayers.sort((a,b)=>(order[a.position||'M']||2)-(order[b.position||'M']||2));
+  // Lignes verticales du terrain selon le poste
+  const LINES={G:0.08, D:0.28, M:0.55, A:0.82};
+  // Groupe par poste
+  const groups={G:[],D:[],M:[],A:[]};
+  teamPlayers.forEach(p=>{
+    const pos=p.position||'M';
+    if(groups[pos])groups[pos].push(p);
+  });
+  // Construit les joueurs positionnés
+  const players=[];
+  Object.entries(groups).forEach(([pos,list])=>{
+    if(!list.length)return;
+    const y=LINES[pos]*H;
+    list.forEach((p,i)=>{
+      const x=list.length===1?0.5*W:(0.2+0.6*i/(list.length-1))*W;
+      const name=p.name.trim();
+      players.push({
+        id:players.length,
+        x, y,
+        label:name.length>5?name.substring(0,5):name,
+        color:pos==='G'?'var(--accent)':HOME
+      });
+    });
+  });
+  // Applique sur le terrain (frame 0)
+  if(!frames.length)frames=[{players:[],away:[],ball:{x:W/2,y:H*0.5}}];
+  frames[0].players=players;
+  if(!frames[0].away)frames[0].away=[];
+  curFrame=0;renderFrameBar();render();
+}
+
+// Sauvegarde la formation actuelle pour l'équipe courante
+function saveTeamFormation(){
+  const key='tactiqueFoot8_formation_'+currentTeamId;
+  const data={
+    players:frames[0].players.map(p=>({x:p.x/W,y:p.y/H,label:p.label,color:p.color})),
+    ball:{x:frames[0].ball.x/W, y:frames[0].ball.y/H}
+  };
+  localStorage.setItem(key, JSON.stringify(data));
+  cloudSetTeam('formation', data);
+  const teamName=TEAMS_LIST.find(t=>t.id===currentTeamId);
+  alert('Formation enregistrée pour '+(teamName?teamName.name:currentTeamId)+' ✅');
+}
+
+// Charge la formation enregistrée pour l'équipe courante
+function loadTeamFormation(){
+  const key='tactiqueFoot8_formation_'+currentTeamId;
+  try{
+    const data=JSON.parse(localStorage.getItem(key));
+    if(!data||!data.players||!data.players.length)return false;
+    const players=data.players.map((p,i)=>({
+      id:i, x:p.x*W, y:p.y*H,
+      label:p.label||String(i),
+      color:p.color||HOME
+    }));
+    if(!frames.length)frames=[{players:[],away:[],ball:{x:W/2,y:H*0.5}}];
+    frames[0].players=players;
+    frames[0].ball={x:data.ball.x*W, y:data.ball.y*H};
+    curFrame=0;renderFrameBar();render();
+    return true;
+  }catch(e){return false;}
+}
+
+// Quand on change d'équipe : charger la formation enregistrée ou placer auto
+function switchTeam(){
+  // D'abord essaie de charger une formation enregistrée
+  if(!loadTeamFormation()){
+    // Sinon, placement automatique selon les postes
+    autoPlaceTeamOnField();
+  }
+}
+
 /* ============ Formations ============ */
-document.getElementById('formationBtn').onclick=()=>document.getElementById('formModal').style.display='flex';
+document.getElementById('formationBtn').onclick=()=>{
+  // Met à jour le nom de l'équipe active dans la modale
+  const team=TEAMS_LIST.find(t=>t.id===currentTeamId);
+  document.getElementById('formTeamName').textContent='Équipe active : '+(team?team.name:currentTeamId);
+  document.getElementById('placeTeamBtn').textContent='⚽ Placer '+(team?team.name:'l\'équipe');
+  document.getElementById('saveTeamFormBtn').textContent='💾 Sauver pour '+(team?team.name:'l\'équipe');
+  document.getElementById('formModal').style.display='flex';
+};
 document.getElementById('closeForm').onclick=()=>document.getElementById('formModal').style.display='none';
 document.querySelectorAll('#formModal [data-form]').forEach(b=>{
   b.onclick=()=>{
@@ -1624,6 +1733,14 @@ document.querySelectorAll('#formModal [data-form]').forEach(b=>{
     document.getElementById('formModal').style.display='none';render();
   };
 });
+document.getElementById('placeTeamBtn').onclick=()=>{
+  autoPlaceTeamOnField();
+  document.getElementById('formModal').style.display='none';
+};
+document.getElementById('saveTeamFormBtn').onclick=()=>{
+  saveTeamFormation();
+  document.getElementById('formModal').style.display='none';
+};
 
 /* ============ Aide ============ */
 document.getElementById('helpBtn').onclick=()=>document.getElementById('helpModal').style.display='flex';
@@ -3297,6 +3414,8 @@ document.getElementById('fsToggle').onclick=()=>{
 /* ============ Init ============ */
 resize();renderFrameBar();render();
 initTeamSelector();
+// Charge la formation de l'équipe active
+switchTeam();
 // Démarrage des écouteurs cloud (temps réel entre coachs)
 cloudListenShared('customDrills','tactiqueFoot8_customDrills',()=>{if(typeof renderDrillList==='function')renderDrillList();});
 cloudListenShared('saves','tactiqueFoot8_saves');
