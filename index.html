@@ -166,6 +166,21 @@
   .player text{font-weight:bold;text-anchor:middle;dominant-baseline:central;pointer-events:none;fill:#fff;}
   .ball{cursor:grab;}
   .arrow-head{}
+
+  /* ----- Banc de remplaçants ----- */
+  #bench{
+    background:rgba(0,0,0,.55);border-radius:0 0 6px 6px;
+    padding:6px 10px;display:none;align-items:center;gap:6px;flex-wrap:wrap;
+    border-top:2px dashed rgba(255,255,255,.3);
+  }
+  #bench.visible{display:flex;}
+  .bench-title{font-size:10px;opacity:.7;white-space:nowrap;color:#fff;margin-right:2px;}
+  .bench-player{
+    background:#374a3e;color:#fff;padding:4px 10px;border-radius:14px;
+    font-size:11px;font-weight:bold;border:1px solid #5a7560;
+    display:flex;align-items:center;gap:4px;
+  }
+  .bench-pos{font-size:9px;opacity:.6;}
   
   /* ---- Panneau bas ---- */
   #bottom{display:flex;gap:6px;align-items:center;padding:8px 10px;background:var(--panel);border-top:2px solid #000;flex-wrap:wrap;}
@@ -225,6 +240,7 @@
   <div id="stage">
     <div id="pitchWrap">
       <svg id="pitch" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="bench"></div>
     </div>
     <div id="animCaption"></div>
     <div id="goalEffect">
@@ -324,10 +340,6 @@
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <button class="tool" id="rosterAdd" style="flex:1;justify-content:center;background:#2e7d32;padding:10px;font-size:14px">➕ Ajouter un joueur</button>
     </div>
-    <div style="display:flex;gap:6px">
-      <button class="tool" id="applyRoster" style="flex:1;justify-content:center;background:#1565c0">Prénoms sur le terrain</button>
-      <button class="tool" id="resetRoster" style="flex:1;justify-content:center">Remettre les numéros</button>
-    </div>
     <button id="closeRoster" style="margin-top:8px">Fermer</button>
   </div>
 </div>
@@ -341,7 +353,7 @@
     <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;text-align:left;margin-bottom:6px">Équipe</label>
     <div id="peditTeam" style="display:flex;gap:6px;margin-bottom:14px"></div>
     <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;text-align:left;margin-bottom:6px">Poste</label>
-    <div id="peditPos" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px"></div>
+    <div id="peditPos" style="margin-bottom:14px"></div>
     <div style="display:flex;gap:6px">
       <button class="tool" id="peditSave" style="flex:1;justify-content:center;background:#2e7d32;padding:10px;font-size:14px">✅ Enregistrer</button>
       <button class="tool" id="peditDelete" style="flex:0 0 auto;background:#5a2222;padding:10px;display:none">🗑 Supprimer</button>
@@ -602,7 +614,45 @@ function makeFrameFromFormation(name){
   return {players, away:[], ball:{x:W/2,y:H*0.5}};
 }
 
-/* Au démarrage */
+/* ============ Positions exactes et formations ============ */
+const POSITIONS={
+  G:  {label:'Gardien',           short:'G',  line:'G',icon:'🧤'},
+  DG: {label:'Défenseur gauche',  short:'DG', line:'D',icon:'🛡'},
+  DC: {label:'Défenseur central', short:'DC', line:'D',icon:'🛡'},
+  DD: {label:'Défenseur droit',   short:'DD', line:'D',icon:'🛡'},
+  MG: {label:'Milieu gauche',     short:'MG', line:'M',icon:'⚙'},
+  MC: {label:'Milieu central',    short:'MC', line:'M',icon:'⚙'},
+  MD: {label:'Milieu droit',      short:'MD', line:'M',icon:'⚙'},
+  AG: {label:'Attaquant gauche',  short:'AG', line:'A',icon:'⚡'},
+  AC: {label:'Attaquant central', short:'AC', line:'A',icon:'⚡'},
+  AD: {label:'Attaquant droit',   short:'AD', line:'A',icon:'⚡'}
+};
+
+// Chaque formation définit ses 8 postes avec leurs coordonnées (fraction du terrain)
+const FORMATION_MAP={
+  '3-3-1':{
+    G:[.5,.08], DG:[.2,.28], DC:[.5,.28], DD:[.8,.28],
+    MG:[.2,.55], MC:[.5,.55], MD:[.8,.55], AC:[.5,.82]
+  },
+  '3-1-2-1':{
+    G:[.5,.08], DG:[.2,.25], DC:[.5,.25], DD:[.8,.25],
+    MC:[.5,.45], MG:[.32,.62], MD:[.68,.62], AC:[.5,.85]
+  },
+  '2-3-2':{
+    G:[.5,.08], DG:[.32,.25], DD:[.68,.25],
+    MG:[.2,.5], MC:[.5,.5], MD:[.8,.5], AG:[.32,.78], AD:[.68,.78]
+  },
+  '3-2-2':{
+    G:[.5,.08], DG:[.2,.28], DC:[.5,.28], DD:[.8,.28],
+    MG:[.35,.55], MD:[.65,.55], AG:[.35,.8], AD:[.65,.8]
+  },
+  '2-1-3-1':{
+    G:[.5,.08], DG:[.32,.24], DD:[.68,.24], MC:[.5,.42],
+    MG:[.2,.6], MD:[.5,.6], AD:[.8,.6], AC:[.5,.85]
+  }
+};
+
+let currentFormation='3-3-1'; // formation active de l'équipe
 frames=[makeFrameFromFormation('3-3-1')];
 // Les adversaires sont stockés dans chaque frame (frames[i].away) pour pouvoir les animer.
 // Quand on ajoute/supprime un adversaire via le bouton, l'opération s'applique à toutes les étapes.
@@ -1500,12 +1550,6 @@ function getRoster(){
 function saveRoster(){}
 
 const TEAM_COLORS={equipe1:'#1565c0',equipe2:'#c62828',equipe3:'#2e7d32'};
-const POS_CONFIG={
-  G:{icon:'🧤',label:'Gardien',color:'#ff8f00'},
-  D:{icon:'🛡',label:'Défenseur',color:'#1565c0'},
-  M:{icon:'⚙',label:'Milieu',color:'#2e7d32'},
-  A:{icon:'⚡',label:'Attaquant',color:'#c62828'}
-};
 
 let rosterViewTeam='all';
 
@@ -1539,9 +1583,10 @@ function renderRosterList(){
 
   players.forEach(p=>{
     const allIdx=getAllPlayers().findIndex(x=>x.id===p.id);
-    const pos=POS_CONFIG[p.position]||POS_CONFIG.M;
+    const pos=POSITIONS[p.position]||POSITIONS.MC;
     const team=TEAMS_LIST.find(t=>t.id===p.team);
     const teamColor=TEAM_COLORS[p.team]||'#555';
+    const lineCol={G:'#ff8f00',D:'#1565c0',M:'#2e7d32',A:'#c62828'}[pos.line]||'#555';
 
     const card=document.createElement('div');
     card.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;background:#1d2a22;border-radius:10px;cursor:pointer;border-left:4px solid '+teamColor+';transition:background .1s';
@@ -1550,7 +1595,7 @@ function renderRosterList(){
     card.onclick=()=>openPlayerEditModal(allIdx);
 
     const badge=document.createElement('div');
-    badge.style.cssText='width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:'+pos.color+'22;border:2px solid '+pos.color;
+    badge.style.cssText='width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:'+lineCol+'22;border:2px solid '+lineCol;
     badge.textContent=pos.icon;
 
     const info=document.createElement('div');
@@ -1605,22 +1650,41 @@ function openPlayerEditModal(idx){
   paintTeams();
 
   const posBox=document.getElementById('peditPos');posBox.innerHTML='';
-  let selPos=player.position||'M';
+  posBox.style.cssText='display:flex;flex-direction:column;gap:4px;margin-bottom:14px;background:#1a3a20;border-radius:8px;padding:10px;border:2px solid #2e7d32';
+  let selPos=player.position||'MC';
   function paintPos(){
-    [...posBox.children].forEach(c=>{
+    posBox.querySelectorAll('[data-pos]').forEach(c=>{
       const active=c.dataset.pos===selPos;
-      const pc=POS_CONFIG[c.dataset.pos];
-      c.style.background=active?pc.color:'#243a2a';
-      c.style.color=active?'#fff':'#bbb';
-      c.style.borderColor=active?'#fff3':'transparent';
+      const pc=POSITIONS[c.dataset.pos];
+      const lineCol={G:'#ff8f00',D:'#1565c0',M:'#2e7d32',A:'#c62828'}[pc.line];
+      c.style.background=active?lineCol:'#0f1c14';
+      c.style.color=active?'#fff':'#888';
+      c.style.borderColor=active?'#fff4':'#3a5240';
     });
   }
-  Object.entries(POS_CONFIG).forEach(([key,cfg])=>{
-    const b=document.createElement('button');b.dataset.pos=key;
-    b.style.cssText='padding:10px 4px;border:2px solid transparent;border-radius:8px;font-weight:bold;font-size:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px';
-    b.innerHTML='<span style="font-size:22px">'+cfg.icon+'</span>'+cfg.label;
-    b.onclick=()=>{selPos=key;paintPos();};
-    posBox.appendChild(b);
+  // Grille en forme de terrain (attaque en haut, gardien en bas)
+  const rows=[
+    ['AG','AC','AD'],
+    ['MG','MC','MD'],
+    ['DG','DC','DD'],
+    [null,'G',null]
+  ];
+  rows.forEach(row=>{
+    const r=document.createElement('div');
+    r.style.cssText='display:flex;gap:4px;justify-content:center';
+    row.forEach(key=>{
+      if(!key){
+        const spacer=document.createElement('div');spacer.style.cssText='width:80px';
+        r.appendChild(spacer);return;
+      }
+      const p=POSITIONS[key];
+      const b=document.createElement('button');b.dataset.pos=key;
+      b.style.cssText='width:80px;padding:6px 2px;border:2px solid #3a5240;border-radius:6px;font-weight:bold;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;background:#0f1c14;color:#888';
+      b.innerHTML='<span style="font-size:14px">'+p.icon+'</span>'+p.short;
+      b.onclick=()=>{selPos=key;paintPos();};
+      r.appendChild(b);
+    });
+    posBox.appendChild(r);
   });
   paintPos();
 
@@ -1652,64 +1716,88 @@ document.getElementById('closePlayerEdit').onclick=()=>document.getElementById('
 document.getElementById('rosterBtn').onclick=()=>{renderRosterTabs();renderRosterList();document.getElementById('rosterModal').style.display='flex';};
 document.getElementById('closeRoster').onclick=()=>document.getElementById('rosterModal').style.display='none';
 document.getElementById('rosterAdd').onclick=()=>openPlayerEditModal(null);
-document.getElementById('applyRoster').onclick=()=>{
-  const r=getRoster();
-  if(!r.length){alert('Aucun joueur dans cette équipe.');return;}
-  const eightPlayers=r.length>=8;
-  frames.forEach(f=>{
-    f.players.forEach((p,i)=>{
-      let name;
-      if(eightPlayers){name=r[i];}else{if(i===0)return;name=r[i-1];}
-      if(name){const trimmed=name.trim();p.label=trimmed.length>5?trimmed.substring(0,5):trimmed;}
-    });
-  });
-  document.getElementById('rosterModal').style.display='none';render();
-};
-document.getElementById('resetRoster').onclick=()=>{
-  frames.forEach(f=>{f.players.forEach((p,i)=>{p.label=i===0?'G':String(i);});});
-  render();document.getElementById('rosterModal').style.display='none';
-};
 
 cloudListenShared('allPlayers',ALL_PLAYERS_KEY);
 
 
 /* ============ Placement automatique et formation par équipe ============ */
-// Place les joueurs de l'équipe courante sur le terrain selon leur poste
+// Place les joueurs de l'équipe courante sur le terrain selon leur poste exact
 function autoPlaceTeamOnField(){
   const teamPlayers=getAllPlayers().filter(p=>p.team===currentTeamId && p.name && p.name.trim());
-  if(!teamPlayers.length)return;
-  // Trie par poste : G → D → M → A
-  const order={G:0,D:1,M:2,A:3};
-  teamPlayers.sort((a,b)=>(order[a.position||'M']||2)-(order[b.position||'M']||2));
-  // Lignes verticales du terrain selon le poste
-  const LINES={G:0.08, D:0.28, M:0.55, A:0.82};
-  // Groupe par poste
-  const groups={G:[],D:[],M:[],A:[]};
-  teamPlayers.forEach(p=>{
-    const pos=p.position||'M';
-    if(groups[pos])groups[pos].push(p);
+  if(!teamPlayers.length){
+    frames=[{players:[],away:[],ball:{x:W/2,y:H*0.5}}];
+    curFrame=0;renderFrameBar();render();updateBench([]);return;
+  }
+
+  const fmap=FORMATION_MAP[currentFormation]||FORMATION_MAP['3-3-1'];
+  const slots=Object.keys(fmap); // postes de la formation (ex: ['G','DG','DC',…])
+
+  // Appariement joueur ↔ slot
+  const placed=[];
+  const used=new Set();
+  const bench=[];
+
+  // 1. Match exact : le joueur a exactement le poste du slot
+  slots.forEach(slot=>{
+    const found=teamPlayers.findIndex((p,i)=>!used.has(i) && p.position===slot);
+    if(found>=0){placed.push({player:teamPlayers[found],slot});used.add(found);}
   });
-  // Construit les joueurs positionnés
-  const players=[];
-  Object.entries(groups).forEach(([pos,list])=>{
-    if(!list.length)return;
-    const y=LINES[pos]*H;
-    list.forEach((p,i)=>{
-      const x=list.length===1?0.5*W:(0.2+0.6*i/(list.length-1))*W;
-      const name=p.name.trim();
-      players.push({
-        id:players.length,
-        x, y,
-        label:name.length>5?name.substring(0,5):name,
-        color:pos==='G'?'var(--accent)':HOME
-      });
+
+  // 2. Match par ligne : même ligne (D↔DG/DC/DD, M↔MG/MC/MD, etc.)
+  slots.forEach(slot=>{
+    if(placed.find(x=>x.slot===slot))return; // déjà rempli
+    const slotLine=POSITIONS[slot]?POSITIONS[slot].line:null;
+    const found=teamPlayers.findIndex((p,i)=>{
+      if(used.has(i))return false;
+      const pLine=POSITIONS[p.position]?POSITIONS[p.position].line:null;
+      return pLine===slotLine;
     });
+    if(found>=0){placed.push({player:teamPlayers[found],slot});used.add(found);}
   });
-  // Applique sur le terrain (frame 0)
+
+  // 3. Remplir les slots restants avec des joueurs libres
+  slots.forEach(slot=>{
+    if(placed.find(x=>x.slot===slot))return;
+    const found=teamPlayers.findIndex((p,i)=>!used.has(i));
+    if(found>=0){placed.push({player:teamPlayers[found],slot});used.add(found);}
+  });
+
+  // Les joueurs non placés → banc
+  teamPlayers.forEach((p,i)=>{if(!used.has(i))bench.push(p);});
+
+  // Construit les joueurs sur le terrain
+  const players=placed.map((x,i)=>{
+    const coords=fmap[x.slot];
+    const name=x.player.name.trim();
+    return {
+      id:i,
+      x:coords[0]*W, y:coords[1]*H,
+      label:name.length>5?name.substring(0,5):name,
+      color:x.slot==='G'?'var(--accent)':HOME
+    };
+  });
+
   if(!frames.length)frames=[{players:[],away:[],ball:{x:W/2,y:H*0.5}}];
   frames[0].players=players;
   if(!frames[0].away)frames[0].away=[];
   curFrame=0;renderFrameBar();render();
+  updateBench(bench);
+}
+
+// Affiche les remplaçants dans le banc
+function updateBench(benchPlayers){
+  const el=document.getElementById('bench');
+  if(!benchPlayers||!benchPlayers.length){
+    el.classList.remove('visible');el.innerHTML='';return;
+  }
+  el.classList.add('visible');
+  el.innerHTML='<span class="bench-title">🪑 Remplaçants :</span>';
+  benchPlayers.forEach(p=>{
+    const pos=POSITIONS[p.position]||POSITIONS.MC;
+    const span=document.createElement('span');span.className='bench-player';
+    span.innerHTML=pos.icon+' '+p.name+' <span class="bench-pos">'+pos.short+'</span>';
+    el.appendChild(span);
+  });
 }
 
 // Sauvegarde la formation actuelle pour l'équipe courante
@@ -1746,11 +1834,26 @@ function loadTeamFormation(){
 
 // Quand on change d'équipe : charger la formation enregistrée ou placer auto
 function switchTeam(){
-  // D'abord essaie de charger une formation enregistrée
   if(!loadTeamFormation()){
-    // Sinon, placement automatique selon les postes
     autoPlaceTeamOnField();
   }
+  // Toujours rafraîchir les prénoms depuis la liste actuelle
+  refreshPlayerNames();
+}
+
+// Applique les prénoms actuels sur les pastilles du terrain
+function refreshPlayerNames(){
+  const r=getRoster();
+  if(!r.length)return;
+  frames.forEach(f=>{
+    f.players.forEach((p,i)=>{
+      if(i<r.length){
+        const name=r[i].trim();
+        p.label=name.length>5?name.substring(0,5):name;
+      }
+    });
+  });
+  render();
 }
 
 /* ============ Formations ============ */
@@ -1765,8 +1868,9 @@ document.getElementById('formationBtn').onclick=()=>{
 document.getElementById('closeForm').onclick=()=>document.getElementById('formModal').style.display='none';
 document.querySelectorAll('#formModal [data-form]').forEach(b=>{
   b.onclick=()=>{
-    frames[curFrame]=makeFrameFromFormation(b.dataset.form);
-    document.getElementById('formModal').style.display='none';render();
+    currentFormation=b.dataset.form;
+    autoPlaceTeamOnField();
+    document.getElementById('formModal').style.display='none';
   };
 });
 document.getElementById('placeTeamBtn').onclick=()=>{
