@@ -316,17 +316,37 @@
 <!-- Modale Mon équipe (gestion liste de joueurs) -->
 <div class="modal-bg" id="rosterModal">
   <div class="modal" style="width:440px;max-width:95vw">
-    <h3>👥 Gestion des joueurs</h3>
-    <p style="font-size:12px;margin:-4px 0 10px;opacity:.8">Tous les joueurs du club. Change l'équipe d'un joueur en modifiant le sélecteur à côté de son nom.</p>
+    <h3>👥 Joueurs du club</h3>
+    <!-- Onglets par équipe -->
+    <div id="rosterTabs" style="display:flex;gap:4px;margin-bottom:10px"></div>
+    <!-- Liste visuelle des joueurs -->
     <div id="rosterList" style="max-height:380px;overflow-y:auto;margin-bottom:10px"></div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
-      <button class="tool" id="rosterAdd" style="flex:1;justify-content:center;background:#2e7d32">➕ Ajouter un joueur</button>
+      <button class="tool" id="rosterAdd" style="flex:1;justify-content:center;background:#2e7d32;padding:10px;font-size:14px">➕ Ajouter un joueur</button>
     </div>
     <div style="display:flex;gap:6px">
       <button class="tool" id="applyRoster" style="flex:1;justify-content:center;background:#1565c0">Prénoms sur le terrain</button>
       <button class="tool" id="resetRoster" style="flex:1;justify-content:center">Remettre les numéros</button>
     </div>
     <button id="closeRoster" style="margin-top:8px">Fermer</button>
+  </div>
+</div>
+
+<!-- Modale ajout / modification d'un joueur -->
+<div class="modal-bg" id="playerEditModal">
+  <div class="modal" style="width:360px;max-width:95vw;text-align:center">
+    <h3 id="playerEditTitle">Ajouter un joueur</h3>
+    <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;text-align:left;margin-bottom:4px">Prénom</label>
+    <input type="text" id="peditName" placeholder="Prénom du joueur" style="width:100%;padding:12px;background:#0f1c14;color:#fff;border:2px solid #3a5240;border-radius:8px;font-size:18px;font-weight:bold;box-sizing:border-box;margin-bottom:12px;text-align:center">
+    <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;text-align:left;margin-bottom:6px">Équipe</label>
+    <div id="peditTeam" style="display:flex;gap:6px;margin-bottom:14px"></div>
+    <label style="font-size:12px;font-weight:bold;color:var(--accent);display:block;text-align:left;margin-bottom:6px">Poste</label>
+    <div id="peditPos" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px"></div>
+    <div style="display:flex;gap:6px">
+      <button class="tool" id="peditSave" style="flex:1;justify-content:center;background:#2e7d32;padding:10px;font-size:14px">✅ Enregistrer</button>
+      <button class="tool" id="peditDelete" style="flex:0 0 auto;background:#5a2222;padding:10px;display:none">🗑 Supprimer</button>
+    </div>
+    <button id="closePlayerEdit" style="margin-top:8px">Annuler</button>
   </div>
 </div>
 
@@ -1465,177 +1485,193 @@ document.getElementById('sessionRunnerClose').onclick=()=>{
 
 /* ============ Gestion centralisée des joueurs ============ */
 const ALL_PLAYERS_KEY='tactiqueFoot8_allPlayers';
-const ROSTER_KEY='tactiqueFoot8_roster'; // gardé pour compat
+const ROSTER_KEY='tactiqueFoot8_roster';
 
-// Liste complète de tous les joueurs du club
 function getAllPlayers(){try{return JSON.parse(localStorage.getItem(ALL_PLAYERS_KEY))||[];}catch(e){return [];}}
 function saveAllPlayers(arr){
   localStorage.setItem(ALL_PLAYERS_KEY,JSON.stringify(arr));
   cloudSetShared('allPlayers',arr);
-  // Met aussi à jour le roster local pour compat avec les fonctions existantes
   const teamPlayers=arr.filter(p=>p.team===currentTeamId).map(p=>p.name);
   localStorage.setItem(ROSTER_KEY,JSON.stringify(teamPlayers));
 }
-// Fonction de compat : retourne la liste de prénoms de l'équipe courante
 function getRoster(){
-  const all=getAllPlayers();
-  return all.filter(p=>p.team===currentTeamId).map(p=>p.name).filter(n=>n&&n.trim());
+  return getAllPlayers().filter(p=>p.team===currentTeamId && p.name && p.name.trim()).map(p=>p.name);
 }
-function saveRoster(r){/* compat : ne fait rien, on utilise saveAllPlayers */}
+function saveRoster(){}
 
-// Couleurs par équipe pour le visuel
 const TEAM_COLORS={equipe1:'#1565c0',equipe2:'#c62828',equipe3:'#2e7d32'};
+const POS_CONFIG={
+  G:{icon:'🧤',label:'Gardien',color:'#ff8f00'},
+  D:{icon:'🛡',label:'Défenseur',color:'#1565c0'},
+  M:{icon:'⚙',label:'Milieu',color:'#2e7d32'},
+  A:{icon:'⚡',label:'Attaquant',color:'#c62828'}
+};
+
+let rosterViewTeam='all';
+
+function renderRosterTabs(){
+  const tabs=document.getElementById('rosterTabs');tabs.innerHTML='';
+  [{id:'all',name:'Tous'},...TEAMS_LIST].forEach(t=>{
+    const btn=document.createElement('button');
+    btn.style.cssText='flex:1;padding:8px 4px;border:none;border-radius:6px;font-weight:bold;font-size:12px;cursor:pointer;'+
+      (rosterViewTeam===t.id
+        ?'background:'+(TEAM_COLORS[t.id]||'var(--accent)')+';color:#fff;'
+        :'background:#243a2a;color:#bbb;');
+    btn.textContent=t.name;
+    btn.onclick=()=>{rosterViewTeam=t.id;renderRosterTabs();renderRosterList();};
+    tabs.appendChild(btn);
+  });
+}
 
 function renderRosterList(){
   const list=document.getElementById('rosterList');
-  const players=getAllPlayers();
+  let players=getAllPlayers();
+  if(rosterViewTeam!=='all')players=players.filter(p=>p.team===rosterViewTeam);
   list.innerHTML='';
 
   if(!players.length){
-    list.innerHTML='<p style="text-align:center;opacity:.6;font-size:13px;padding:18px">Aucun joueur enregistré.<br>Clique « ➕ Ajouter » ci-dessous.</p>';
+    list.innerHTML='<div style="text-align:center;padding:30px 10px;opacity:.6"><div style="font-size:40px;margin-bottom:10px">👥</div><div style="font-size:14px">'+(rosterViewTeam==='all'?'Aucun joueur enregistré':'Aucun joueur dans cette équipe')+'</div><div style="font-size:12px;margin-top:4px">Clique « ➕ Ajouter » ci-dessous</div></div>';
     return;
   }
 
-  // Regroupe par équipe + "non assigné"
-  const groups={};
-  TEAMS_LIST.forEach(t=>{groups[t.id]=[];});
-  groups['none']=[];
-  players.forEach((p,i)=>{
-    const g=groups[p.team]||groups['none'];
-    g.push({...p, _idx:i});
+  const grid=document.createElement('div');
+  grid.style.cssText='display:flex;flex-direction:column;gap:6px';
+
+  players.forEach(p=>{
+    const allIdx=getAllPlayers().findIndex(x=>x.id===p.id);
+    const pos=POS_CONFIG[p.position]||POS_CONFIG.M;
+    const team=TEAMS_LIST.find(t=>t.id===p.team);
+    const teamColor=TEAM_COLORS[p.team]||'#555';
+
+    const card=document.createElement('div');
+    card.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;background:#1d2a22;border-radius:10px;cursor:pointer;border-left:4px solid '+teamColor+';transition:background .1s';
+    card.onmouseenter=()=>card.style.background='#2a3d2f';
+    card.onmouseleave=()=>card.style.background='#1d2a22';
+    card.onclick=()=>openPlayerEditModal(allIdx);
+
+    const badge=document.createElement('div');
+    badge.style.cssText='width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:'+pos.color+'22;border:2px solid '+pos.color;
+    badge.textContent=pos.icon;
+
+    const info=document.createElement('div');
+    info.style.cssText='flex:1;min-width:0';
+    const nameEl=document.createElement('div');
+    nameEl.style.cssText='font-weight:bold;font-size:16px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    nameEl.textContent=p.name||'(sans nom)';
+    const detailEl=document.createElement('div');
+    detailEl.style.cssText='font-size:11px;opacity:.7;margin-top:2px';
+    detailEl.textContent=pos.label+(team?' • '+team.name:'');
+    info.appendChild(nameEl);info.appendChild(detailEl);
+
+    const arrow=document.createElement('span');
+    arrow.style.cssText='font-size:18px;opacity:.4;flex-shrink:0';
+    arrow.textContent='›';
+
+    card.appendChild(badge);card.appendChild(info);card.appendChild(arrow);
+    grid.appendChild(card);
   });
-
-  // Affiche chaque groupe
-  const allGroups=[...TEAMS_LIST.map(t=>({id:t.id,name:t.name,color:TEAM_COLORS[t.id]||'#555'})),{id:'none',name:'Non assigné',color:'#555'}];
-  allGroups.forEach(grp=>{
-    const items=groups[grp.id];
-    // En-tête de l'équipe
-    const header=document.createElement('div');
-    header.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 6px 4px;border-bottom:2px solid '+grp.color+';margin:10px 0 6px;';
-    header.innerHTML=`<span style="width:14px;height:14px;border-radius:50%;background:${grp.color};flex-shrink:0"></span><span style="font-weight:bold;font-size:14px;flex:1">${grp.name}</span><span style="font-size:11px;opacity:.6">${items.length} joueur${items.length>1?'s':''}</span>`;
-    list.appendChild(header);
-
-    if(!items.length){
-      const empty=document.createElement('div');
-      empty.style.cssText='padding:6px 12px;font-size:12px;opacity:.5;font-style:italic';
-      empty.textContent='Aucun joueur dans cette équipe';
-      list.appendChild(empty);
-    }
-
-    items.forEach(p=>{
-      const row=document.createElement('div');
-      row.style.cssText='display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:6px;background:#1d2a22;padding:10px;border-radius:8px';
-
-      // Nom (éditable) — prend toute la largeur
-      const nameInput=document.createElement('input');
-      nameInput.type='text';nameInput.value=p.name||'';
-      nameInput.placeholder='Prénom du joueur';
-      nameInput.style.cssText='flex:1 1 100%;padding:10px 12px;border:2px solid #3a5240;background:#0f1c14;color:#fff;border-radius:6px;font-size:16px;font-weight:bold;box-sizing:border-box';
-      nameInput.oninput=()=>{
-        const all=getAllPlayers();
-        all[p._idx].name=nameInput.value;
-        saveAllPlayers(all);
-      };
-
-      // Ligne du bas : poste + sélecteur d'équipe + supprimer
-      const bottomRow=document.createElement('div');
-      bottomRow.style.cssText='display:flex;gap:5px;align-items:center;width:100%';
-
-      // Sélecteur de poste
-      const posSel=document.createElement('select');
-      posSel.style.cssText='padding:8px;background:#1a3a20;color:#fff;border:2px solid #4caf50;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;flex-shrink:0';
-      [{v:'G',l:'🧤 G'},{v:'D',l:'🛡 D'},{v:'M',l:'⚙ M'},{v:'A',l:'⚡ A'}].forEach(o=>{
-        const opt=document.createElement('option');opt.value=o.v;opt.textContent=o.l;
-        posSel.appendChild(opt);
-      });
-      posSel.value=p.position||'M';
-      posSel.onchange=()=>{
-        const all=getAllPlayers();
-        all[p._idx].position=posSel.value;
-        saveAllPlayers(all);
-      };
-
-      // Sélecteur d'équipe
-      const teamSel=document.createElement('select');
-      teamSel.style.cssText='flex:1;padding:8px;background:#4a1a6b;color:#fff;border:2px solid #7e57c2;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer';
-      TEAMS_LIST.forEach(t=>{
-        const opt=document.createElement('option');opt.value=t.id;opt.textContent=t.name;
-        teamSel.appendChild(opt);
-      });
-      const optNone=document.createElement('option');optNone.value='none';optNone.textContent='Non assigné';
-      teamSel.appendChild(optNone);
-      teamSel.value=p.team||'none';
-      teamSel.onchange=()=>{
-        const all=getAllPlayers();
-        all[p._idx].team=teamSel.value==='none'?'':teamSel.value;
-        saveAllPlayers(all);
-        renderRosterList();
-      };
-
-      // Bouton supprimer
-      const delBtn=document.createElement('button');
-      delBtn.className='tool';delBtn.textContent='🗑';
-      delBtn.style.cssText='background:#5a2222;padding:8px 12px;flex-shrink:0;font-size:16px';
-      delBtn.onclick=()=>{
-        const all=getAllPlayers();
-        all.splice(p._idx,1);
-        saveAllPlayers(all);
-        renderRosterList();
-      };
-
-      bottomRow.appendChild(teamSel);
-      bottomRow.appendChild(delBtn);
-      row.appendChild(nameInput);
-      row.appendChild(bottomRow);
-      list.appendChild(row);
-    });
-  });
+  list.appendChild(grid);
 }
 
-document.getElementById('rosterBtn').onclick=()=>{renderRosterList();document.getElementById('rosterModal').style.display='flex';};
+/* ============ Modale ajout / édition joueur ============ */
+let editingPlayerIdx=null;
+
+function openPlayerEditModal(idx){
+  const isEdit=idx!==null && idx!==undefined && idx>=0;
+  editingPlayerIdx=isEdit?idx:null;
+  const player=isEdit?getAllPlayers()[idx]:{name:'',team:currentTeamId,position:'M'};
+
+  document.getElementById('playerEditTitle').textContent=isEdit?'✏️ Modifier le joueur':'➕ Nouveau joueur';
+  document.getElementById('peditName').value=player.name||'';
+  document.getElementById('peditDelete').style.display=isEdit?'inline-flex':'none';
+
+  const teamBox=document.getElementById('peditTeam');teamBox.innerHTML='';
+  let selTeam=player.team||currentTeamId;
+  function paintTeams(){
+    [...teamBox.children].forEach(c=>{
+      const active=c.dataset.tid===selTeam;
+      c.style.background=active?(TEAM_COLORS[c.dataset.tid]||'#555'):'#243a2a';
+      c.style.color=active?'#fff':'#bbb';
+      c.style.borderColor=active?'#fff3':'transparent';
+    });
+  }
+  TEAMS_LIST.forEach(t=>{
+    const b=document.createElement('button');b.dataset.tid=t.id;
+    b.style.cssText='flex:1;padding:10px 4px;border:2px solid transparent;border-radius:8px;font-weight:bold;font-size:13px;cursor:pointer';
+    b.textContent=t.name;
+    b.onclick=()=>{selTeam=t.id;paintTeams();};
+    teamBox.appendChild(b);
+  });
+  paintTeams();
+
+  const posBox=document.getElementById('peditPos');posBox.innerHTML='';
+  let selPos=player.position||'M';
+  function paintPos(){
+    [...posBox.children].forEach(c=>{
+      const active=c.dataset.pos===selPos;
+      const pc=POS_CONFIG[c.dataset.pos];
+      c.style.background=active?pc.color:'#243a2a';
+      c.style.color=active?'#fff':'#bbb';
+      c.style.borderColor=active?'#fff3':'transparent';
+    });
+  }
+  Object.entries(POS_CONFIG).forEach(([key,cfg])=>{
+    const b=document.createElement('button');b.dataset.pos=key;
+    b.style.cssText='padding:10px 4px;border:2px solid transparent;border-radius:8px;font-weight:bold;font-size:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px';
+    b.innerHTML='<span style="font-size:22px">'+cfg.icon+'</span>'+cfg.label;
+    b.onclick=()=>{selPos=key;paintPos();};
+    posBox.appendChild(b);
+  });
+  paintPos();
+
+  document.getElementById('peditSave').onclick=()=>{
+    const name=document.getElementById('peditName').value.trim();
+    if(!name){alert('Entre un prénom.');return;}
+    const all=getAllPlayers();
+    if(isEdit){
+      all[idx].name=name;all[idx].team=selTeam;all[idx].position=selPos;
+    }else{
+      all.push({name,team:selTeam,position:selPos,id:Date.now()});
+    }
+    saveAllPlayers(all);
+    document.getElementById('playerEditModal').style.display='none';
+    renderRosterList();
+  };
+  document.getElementById('peditDelete').onclick=()=>{
+    if(!confirm('Supprimer ce joueur ?'))return;
+    const all=getAllPlayers();all.splice(idx,1);saveAllPlayers(all);
+    document.getElementById('playerEditModal').style.display='none';
+    renderRosterList();
+  };
+
+  document.getElementById('playerEditModal').style.display='flex';
+  setTimeout(()=>document.getElementById('peditName').focus(),100);
+}
+document.getElementById('closePlayerEdit').onclick=()=>document.getElementById('playerEditModal').style.display='none';
+
+document.getElementById('rosterBtn').onclick=()=>{renderRosterTabs();renderRosterList();document.getElementById('rosterModal').style.display='flex';};
 document.getElementById('closeRoster').onclick=()=>document.getElementById('rosterModal').style.display='none';
-document.getElementById('rosterAdd').onclick=()=>{
-  const all=getAllPlayers();
-  all.push({name:'', team:currentTeamId, id:Date.now()});
-  saveAllPlayers(all);
-  renderRosterList();
-  setTimeout(()=>{
-    const inps=document.querySelectorAll('#rosterList input[type="text"]');
-    if(inps.length)inps[inps.length-1].focus();
-  },50);
-};
+document.getElementById('rosterAdd').onclick=()=>openPlayerEditModal(null);
 document.getElementById('applyRoster').onclick=()=>{
   const r=getRoster();
-  if(!r.length){alert('Aucun joueur dans cette équipe. Ajoute des joueurs d\'abord.');return;}
+  if(!r.length){alert('Aucun joueur dans cette équipe.');return;}
   const eightPlayers=r.length>=8;
   frames.forEach(f=>{
     f.players.forEach((p,i)=>{
       let name;
-      if(eightPlayers){
-        name=r[i];
-      } else {
-        if(i===0)return;
-        name=r[i-1];
-      }
-      if(name){
-        const trimmed=name.trim();
-        p.label=trimmed.length>5?trimmed.substring(0,5):trimmed;
-      }
+      if(eightPlayers){name=r[i];}else{if(i===0)return;name=r[i-1];}
+      if(name){const trimmed=name.trim();p.label=trimmed.length>5?trimmed.substring(0,5):trimmed;}
     });
   });
-  document.getElementById('rosterModal').style.display='none';
-  render();
+  document.getElementById('rosterModal').style.display='none';render();
 };
 document.getElementById('resetRoster').onclick=()=>{
-  frames.forEach(f=>{
-    f.players.forEach((p,i)=>{p.label=i===0?'G':String(i);});
-  });
-  render();
-  document.getElementById('rosterModal').style.display='none';
+  frames.forEach(f=>{f.players.forEach((p,i)=>{p.label=i===0?'G':String(i);});});
+  render();document.getElementById('rosterModal').style.display='none';
 };
 
-// Écoute des changements cloud pour la liste de joueurs
 cloudListenShared('allPlayers',ALL_PLAYERS_KEY);
+
 
 /* ============ Placement automatique et formation par équipe ============ */
 // Place les joueurs de l'équipe courante sur le terrain selon leur poste
