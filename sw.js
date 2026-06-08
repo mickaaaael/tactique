@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tactique-foot8-v10';
+const CACHE_NAME = 'tactique-foot8-v11';
 const ASSETS = [
   './',
   './index.html',

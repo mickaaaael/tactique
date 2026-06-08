@@ -157,7 +157,6 @@
 
   /* ---- Terrain ---- */
   #stage{flex:1;position:relative;overflow:hidden;background:#0a130d;display:flex;align-items:center;justify-content:center;}
-  #stageInner{display:flex;flex-direction:column;align-items:center;}
   #pitchWrap{position:relative;touch-action:none;}
   svg#pitch{display:block;background:
     repeating-linear-gradient(90deg,var(--grass-dark) 0 9.09%,var(--grass-light) 9.09% 18.18%);
@@ -170,12 +169,11 @@
 
   /* ----- Banc de remplaçants ----- */
   #bench{
-    background:rgba(0,0,0,.6);border-radius:0 0 6px 6px;
-    padding:8px 12px;display:none;align-items:center;gap:6px;flex-wrap:wrap;
-    border-top:2px dashed rgba(255,255,255,.3);
-    width:100%;box-sizing:border-box;
+    background:#0d1a12;
+    padding:0;display:none;align-items:center;gap:6px;flex-wrap:wrap;
+    border-top:2px dashed rgba(255,255,255,.2);
   }
-  #bench.visible{display:flex;}
+  #bench.visible{display:flex;padding:8px 12px;}
   .bench-title{font-size:11px;opacity:.8;white-space:nowrap;color:#ffd54f;font-weight:bold;margin-right:4px;}
   .bench-player{
     background:#374a3e;color:#fff;padding:5px 10px;border-radius:14px;
@@ -240,11 +238,8 @@
   <button id="fsToggle" title="Afficher / masquer les boutons">☰</button>
 
   <div id="stage">
-    <div id="stageInner">
-      <div id="pitchWrap">
-        <svg id="pitch" xmlns="http://www.w3.org/2000/svg"></svg>
-      </div>
-      <div id="bench"></div>
+    <div id="pitchWrap">
+      <svg id="pitch" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
     <div id="animCaption"></div>
     <div id="goalEffect">
@@ -252,6 +247,8 @@
       <div class="confetti" id="confetti"></div>
     </div>
   </div>
+
+  <div id="bench"></div>
 
   <div id="bottom">
     <div class="legend"><span class="dot" style="background:var(--home)"></span>Mon équipe</div>
@@ -677,9 +674,7 @@ let gearType=null;  // objet sélectionné à poser
 /* ============ Dimensionnement responsive ============ */
 function resize(){
   const stage=document.getElementById('stage');
-  const benchEl=document.getElementById('bench');
-  const benchH=benchEl&&benchEl.classList.contains('visible')?benchEl.offsetHeight||44:0;
-  const availW=stage.clientWidth-12, availH=stage.clientHeight-12-benchH;
+  const availW=stage.clientWidth-12, availH=stage.clientHeight-12;
   let w=availW, h=w*H/W;
   if(h>availH){h=availH;w=h*W/H;}
   pitch.setAttribute('viewBox',`0 0 ${W} ${H}`);
@@ -1709,12 +1704,15 @@ function openPlayerEditModal(idx){
     saveAllPlayers(all);
     document.getElementById('playerEditModal').style.display='none';
     renderRosterList();
+    // Rafraîchir le terrain avec les nouvelles données
+    autoPlaceTeamOnField();
   };
   document.getElementById('peditDelete').onclick=()=>{
     if(!confirm('Supprimer ce joueur ?'))return;
     const all=getAllPlayers();all.splice(idx,1);saveAllPlayers(all);
     document.getElementById('playerEditModal').style.display='none';
     renderRosterList();
+    autoPlaceTeamOnField();
   };
 
   document.getElementById('playerEditModal').style.display='flex';
