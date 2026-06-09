@@ -1785,7 +1785,9 @@ function autoPlaceTeamOnField(){
       id:i,
       x:coords[0]*W, y:coords[1]*H,
       label:name.length>5?name.substring(0,5):name,
-      color:x.slot==='G'?'var(--accent)':HOME
+      color:x.slot==='G'?'var(--accent)':HOME,
+      playerId:x.player.id,
+      slot:x.slot
     };
   });
 
@@ -1796,30 +1798,101 @@ function autoPlaceTeamOnField(){
   updateBench(bench);
 }
 
+// Joueurs actuellement sur le banc (pour les remplacements)
+let currentBenchPlayers=[];
+
 // Affiche les remplaçants dans le banc latéral
 function updateBench(benchPlayers){
+  currentBenchPlayers=benchPlayers||[];
   const el=document.getElementById('bench');
-  // Toujours garder le titre
   el.innerHTML='<div class="bench-title">🪑<br>Banc</div>';
 
-  if(!benchPlayers||!benchPlayers.length){
+  if(!currentBenchPlayers.length){
     el.innerHTML+='<div class="bench-empty">Aucun<br>remplaçant</div>';
     return;
   }
 
-  benchPlayers.forEach(p=>{
+  currentBenchPlayers.forEach((p,bIdx)=>{
     const pos=POSITIONS[p.position]||POSITIONS.MC;
     const lineCol={G:'#ff8f00',D:'#1565c0',M:'#2e7d32',A:'#c62828'}[pos.line]||'#555';
     const name=p.name.trim();
     const item=document.createElement('div');item.className='bench-item';
+    item.style.cursor='pointer';
+    item.title='Cliquer pour remplacer un joueur sur le terrain';
     item.innerHTML=
-      '<div class="bench-circle" style="background:'+lineCol+'">'+
+      '<div class="bench-circle" style="background:'+lineCol+';border-color:'+lineCol+'">'+
         (name.length>3?name.substring(0,3):name)+
       '</div>'+
       '<div class="bench-name">'+name+'</div>';
+    item.onclick=()=>openSubstitutionModal(bIdx);
     el.appendChild(item);
   });
 }
+
+// Modale de remplacement : choisir qui sort du terrain
+function openSubstitutionModal(benchIdx){
+  const benchPlayer=currentBenchPlayers[benchIdx];
+  if(!benchPlayer)return;
+  const pos=POSITIONS[benchPlayer.position]||POSITIONS.MC;
+  const fieldPlayers=frames[0].players;
+  if(!fieldPlayers.length)return;
+
+  // Construit une liste de joueurs sur le terrain
+  let html='<h3>🔄 Remplacement</h3>';
+  html+='<p style="font-size:13px;margin:0 0 10px"><b>'+pos.icon+' '+benchPlayer.name+'</b> entre sur le terrain.</p>';
+  html+='<p style="font-size:12px;margin:0 0 8px;opacity:.7">Qui sort ?</p>';
+  html+='<div style="display:flex;flex-direction:column;gap:5px;max-height:250px;overflow-y:auto">';
+
+  fieldPlayers.forEach((fp,fpIdx)=>{
+    const fpRoster=getAllPlayers().find(p=>p.id===fp.playerId);
+    const fpPos=fpRoster?POSITIONS[fpRoster.position]:null;
+    const fpIcon=fpPos?fpPos.icon:'⚽';
+    const fpPosLabel=fpPos?fpPos.short:'';
+    html+=`<button class="tool" onclick="doSubstitution(${benchIdx},${fpIdx})" style="width:100%;padding:10px;justify-content:flex-start;gap:10px">
+      <span style="font-size:18px">${fpIcon}</span>
+      <span style="flex:1;text-align:left"><b>${fp.label}</b> <span style="opacity:.6;font-size:11px">${fpPosLabel}</span></span>
+      <span style="font-size:14px;opacity:.4">↔</span>
+    </button>`;
+  });
+
+  html+='</div>';
+  html+='<button onclick="document.getElementById(\'subModal\').style.display=\'none\'" style="width:100%;margin-top:10px;padding:10px;border:none;border-radius:8px;background:var(--accent);color:#1a1a1a;font-weight:bold;cursor:pointer">Annuler</button>';
+
+  // Affiche dans une modale
+  let modal=document.getElementById('subModal');
+  if(!modal){
+    modal=document.createElement('div');modal.id='subModal';modal.className='modal-bg';
+    modal.innerHTML='<div class="modal" style="width:340px;max-width:95vw" id="subModalContent"></div>';
+    document.body.appendChild(modal);
+  }
+  document.getElementById('subModalContent').innerHTML=html;
+  modal.style.display='flex';
+}
+
+// Effectue le remplacement
+window.doSubstitution=function(benchIdx, fieldIdx){
+  const benchPlayer=currentBenchPlayers[benchIdx];
+  const fieldPlayer=frames[0].players[fieldIdx];
+  if(!benchPlayer||!fieldPlayer)return;
+
+  // Le remplaçant prend la position du joueur sur le terrain
+  const name=benchPlayer.name.trim();
+  const oldPlayerId=fieldPlayer.playerId;
+  const oldSlot=fieldPlayer.slot;
+
+  frames[0].players[fieldIdx].label=name.length>5?name.substring(0,5):name;
+  frames[0].players[fieldIdx].playerId=benchPlayer.id;
+
+  // Le joueur sorti va au banc
+  const sortedPlayer=getAllPlayers().find(p=>p.id===oldPlayerId);
+  currentBenchPlayers.splice(benchIdx,1);
+  if(sortedPlayer)currentBenchPlayers.push(sortedPlayer);
+
+  // Ferme la modale et met à jour
+  document.getElementById('subModal').style.display='none';
+  render();
+  updateBench(currentBenchPlayers);
+};
 
 // Sauvegarde la formation actuelle pour l'équipe courante
 function saveTeamFormation(){
