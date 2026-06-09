@@ -1754,7 +1754,6 @@ function autoPlaceTeamOnField(){
 
   const placed=[];
   const used=new Set();
-  const bench=[];
 
   // 1. Match exact : joueur position === slot
   slots.forEach(slot=>{
@@ -1774,7 +1773,29 @@ function autoPlaceTeamOnField(){
     if(found>=0){placed.push({player:teamPlayers[found],slot});used.add(found);}
   });
 
-  // 3. Les joueurs restants vont au BANC (on ne force pas un attaquant en défense)
+  // 3. Match adjacent : A↔M, M↔D (un attaquant peut jouer milieu, un milieu peut jouer défenseur)
+  const ADJACENT={G:['D'],D:['M','G'],M:['D','A'],A:['M']};
+  slots.forEach(slot=>{
+    if(placed.find(x=>x.slot===slot))return;
+    const slotLine=POSITIONS[slot]?POSITIONS[slot].line:null;
+    const adjLines=ADJACENT[slotLine]||[];
+    const found=teamPlayers.findIndex((p,i)=>{
+      if(used.has(i))return false;
+      const pLine=POSITIONS[p.position]?POSITIONS[p.position].line:null;
+      return adjLines.includes(pLine);
+    });
+    if(found>=0){placed.push({player:teamPlayers[found],slot});used.add(found);}
+  });
+
+  // 4. Remplir les slots restants avec n'importe quel joueur libre (plutôt que laisser vide)
+  slots.forEach(slot=>{
+    if(placed.find(x=>x.slot===slot))return;
+    const found=teamPlayers.findIndex((p,i)=>!used.has(i));
+    if(found>=0){placed.push({player:teamPlayers[found],slot});used.add(found);}
+  });
+
+  // 5. Les vrais remplaçants : joueurs qui dépassent les 8 postes de la formation
+  const bench=[];
   teamPlayers.forEach((p,i)=>{if(!used.has(i))bench.push(p);});
 
   // Construit les joueurs sur le terrain
