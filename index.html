@@ -1942,8 +1942,9 @@ window.doSubstitution=function(benchIdx, fieldIdx){
 function saveTeamFormation(){
   const key='tactiqueFoot8_formation_'+currentTeamId;
   const data={
-    players:frames[0].players.map(p=>({x:p.x/W,y:p.y/H,label:p.label,color:p.color})),
-    ball:{x:frames[0].ball.x/W, y:frames[0].ball.y/H}
+    players:frames[0].players.map(p=>({x:p.x/W,y:p.y/H,label:p.label,color:p.color,playerId:p.playerId||null,slot:p.slot||null})),
+    ball:{x:frames[0].ball.x/W, y:frames[0].ball.y/H},
+    formation:currentFormation
   };
   localStorage.setItem(key, JSON.stringify(data));
   cloudSetTeam('formation', data);
@@ -1957,15 +1958,36 @@ function loadTeamFormation(){
   try{
     const data=JSON.parse(localStorage.getItem(key));
     if(!data||!data.players||!data.players.length)return false;
-    const players=data.players.map((p,i)=>({
-      id:i, x:p.x*W, y:p.y*H,
-      label:p.label||String(i),
-      color:p.color||HOME
-    }));
+    // Restaure la formation utilisée
+    if(data.formation)currentFormation=data.formation;
+    // Retrouve chaque joueur par son ID dans le roster actuel
+    const currentRoster=getAllPlayers().filter(p=>p.team===currentTeamId);
+    const players=data.players.map((saved,i)=>{
+      let name=saved.label||String(i);
+      let playerId=saved.playerId||null;
+      // Si on a l'ID, on retrouve le joueur dans le roster actuel pour avoir son nom à jour
+      if(playerId){
+        const rosterPlayer=currentRoster.find(p=>p.id===playerId);
+        if(rosterPlayer){
+          name=rosterPlayer.name.trim();
+        }
+      }
+      return {
+        id:i, x:saved.x*W, y:saved.y*H,
+        label:name.length>5?name.substring(0,5):name,
+        color:saved.color||HOME,
+        playerId:playerId,
+        slot:saved.slot||null
+      };
+    });
     if(!frames.length)frames=[{players:[],away:[],ball:{x:W/2,y:H*0.5}}];
     frames[0].players=players;
     frames[0].ball={x:data.ball.x*W, y:data.ball.y*H};
     curFrame=0;renderFrameBar();render();
+    // Remplaçants : joueurs du roster qui ne sont pas sur le terrain
+    const placedIds=new Set(players.map(p=>p.playerId).filter(Boolean));
+    const bench=currentRoster.filter(p=>!placedIds.has(p.id));
+    updateBench(bench);
     return true;
   }catch(e){return false;}
 }
@@ -1975,23 +1997,6 @@ function switchTeam(){
   if(!loadTeamFormation()){
     autoPlaceTeamOnField();
   }
-  // Toujours rafraîchir les prénoms depuis la liste actuelle
-  refreshPlayerNames();
-}
-
-// Applique les prénoms actuels sur les pastilles du terrain
-function refreshPlayerNames(){
-  const r=getRoster();
-  if(!r.length)return;
-  frames.forEach(f=>{
-    f.players.forEach((p,i)=>{
-      if(i<r.length){
-        const name=r[i].trim();
-        p.label=name.length>5?name.substring(0,5):name;
-      }
-    });
-  });
-  render();
 }
 
 /* ============ Formations ============ */
