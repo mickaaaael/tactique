@@ -1551,8 +1551,19 @@ document.getElementById('sessionRunnerClose').onclick=()=>{
 const ALL_PLAYERS_KEY='tactiqueFoot8_allPlayers';
 const ROSTER_KEY='tactiqueFoot8_roster';
 
-function getAllPlayers(){try{return JSON.parse(localStorage.getItem(ALL_PLAYERS_KEY))||[];}catch(e){return [];}}
-function saveAllPlayers(arr){
+function getAllPlayers(){
+  try{
+    const arr=JSON.parse(localStorage.getItem(ALL_PLAYERS_KEY))||[];
+    // Compatibilité : normalise les anciens formats de poste (D→DC, M→MC, A→AC)
+    arr.forEach(p=>{
+      if(p.position==='D')p.position='DC';
+      if(p.position==='M')p.position='MC';
+      if(p.position==='A')p.position='AC';
+      if(!p.position)p.position='MC';
+    });
+    return arr;
+  }catch(e){return [];}
+}function saveAllPlayers(arr){
   localStorage.setItem(ALL_PLAYERS_KEY,JSON.stringify(arr));
   cloudSetShared('allPlayers',arr);
   const teamPlayers=arr.filter(p=>p.team===currentTeamId).map(p=>p.name);
@@ -1669,6 +1680,10 @@ function openPlayerEditModal(idx){
   const posBox=document.getElementById('peditPos');posBox.innerHTML='';
   posBox.style.cssText='display:flex;flex-direction:column;gap:4px;margin-bottom:14px;background:#1a3a20;border-radius:8px;padding:10px;border:2px solid #2e7d32';
   let selPos=player.position||'MC';
+  // Normalise les anciens formats
+  if(selPos==='D')selPos='DC';
+  if(selPos==='M')selPos='MC';
+  if(selPos==='A')selPos='AC';
   function paintPos(){
     posBox.querySelectorAll('[data-pos]').forEach(c=>{
       const active=c.dataset.pos===selPos;
@@ -1816,7 +1831,15 @@ function autoPlaceTeamOnField(){
   frames[0].players=players;
   if(!frames[0].away)frames[0].away=[];
   curFrame=0;renderFrameBar();render();
-  updateBench(bench);
+  // Info sur le banc : nombre de joueurs trouvés
+  if(teamPlayers.length<8){
+    const missing=8-teamPlayers.length;
+    const el=document.getElementById('bench');
+    el.innerHTML='<div class="bench-title">🪑<br>Banc</div>';
+    el.innerHTML+='<div class="bench-empty">⚠️<br>'+teamPlayers.length+'/8<br>joueurs<br><span style="font-size:8px">Il manque '+missing+' joueur'+(missing>1?'s':'')+'</span></div>';
+  } else {
+    updateBench(bench);
+  }
 }
 
 // Joueurs actuellement sur le banc (pour les remplacements)
