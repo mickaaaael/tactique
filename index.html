@@ -1986,8 +1986,22 @@ function loadTeamFormation(){
     curFrame=0;renderFrameBar();render();
     // Remplaçants : joueurs du roster qui ne sont pas sur le terrain
     const placedIds=new Set(players.map(p=>p.playerId).filter(Boolean));
-    const bench=currentRoster.filter(p=>!placedIds.has(p.id));
-    updateBench(bench);
+    let bench;
+    if(placedIds.size>0){
+      // Nouveau format : on sait exactement qui est sur le terrain
+      bench=currentRoster.filter(p=>!placedIds.has(p.id));
+    } else {
+      // Ancien format sans playerId : les N premiers sont sur le terrain, le reste au banc
+      bench=currentRoster.length>players.length ? currentRoster.slice(players.length) : [];
+    }
+    if(currentRoster.length<8){
+      const missing=8-currentRoster.length;
+      const el=document.getElementById('bench');
+      el.innerHTML='<div class="bench-title">🪑<br>Banc</div>';
+      el.innerHTML+='<div class="bench-empty">⚠️<br>'+currentRoster.length+'/8<br>joueurs<br><span style="font-size:8px">Il manque '+missing+'</span></div>';
+    } else {
+      updateBench(bench);
+    }
     return true;
   }catch(e){return false;}
 }
