@@ -512,7 +512,7 @@
       <b>📋 Formation</b> : place automatiquement les 8 joueurs (5 systèmes).<br><br>
 
       <b style="color:var(--accent)">— Entraînements et séances —</b><br><br>
-      <b>🏃 Entraînement</b> : 48 exercices animés, classés par catégorie (échauffement, conduite, passe, tir, défense, attaque, coups de pied arrêtés, collectif, gardien) et par niveau (🟢 facile / 🟡 moyen / 🔴 difficile).<br>
+      <b>🏃 Entraînement</b> : 70 exercices animés, classés par catégorie (échauffement, conduite, passe, tir, défense, attaque, coups de pied arrêtés, collectif, gardien) et par niveau (🟢 facile / 🟡 moyen / 🔴 difficile).<br>
       <b>📚 Séance</b> : empile plusieurs ateliers pour une séance complète avec durée. Tu peux la sauvegarder, puis la dérouler avec un panneau flottant qui compte le temps et passe automatiquement à l'atelier suivant.<br><br>
 
       <b style="color:var(--accent)">— Animation —</b><br><br>
@@ -3430,7 +3430,408 @@ const DRILLS=[
       {p:[[.6,.2]],  b:[.95,.95]},
       {p:[[.5,.2]],  b:[.95,.95]}
     ]
-  }
+  },
+  /* ===== NOUVEAUX EXERCICES (vague 2) ===== */
+  {
+    name:"Slalom serré", category:'motricity', level:'easy', age:"U7 à U11",
+    gear:[['stick',.5,.25],['stick',.5,.35],['stick',.5,.45],['stick',.5,.55],['stick',.5,.65],['stick',.5,.75]],
+    consignes:[
+      "6 piquets alignés, espacés d'environ 1 mètre.",
+      "Slalomer entre les piquets sans ballon, en pas rapides.",
+      "Monter les genoux et rester sur la pointe des pieds.",
+      "Revenir en footing par l'extérieur."
+    ],
+    variantes:"Avec ballon • en pas chassés • chronométré.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.85]], b:[.9,.9]},
+      {p:[[.42,.7]], b:[.9,.9]},
+      {p:[[.58,.6]], b:[.9,.9]},
+      {p:[[.42,.5]], b:[.9,.9]},
+      {p:[[.58,.4]], b:[.9,.9]},
+      {p:[[.42,.3]], b:[.9,.9]},
+      {p:[[.5,.18]], b:[.9,.9]}
+    ]
+  },
+  {
+    name:"Échelle de rythme", category:'motricity', level:'medium', age:"U9 à U13",
+    gear:[['ladder',.5,.5]],
+    consignes:[
+      "Échelle au sol : 1 appui par case en montée.",
+      "Puis 2 appuis par case au retour.",
+      "Bras dynamiques, regard devant (pas sur les pieds).",
+      "3 passages par variante."
+    ],
+    variantes:"Pas chassés • cloche-pied • entrée-sortie latérale.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.75]], b:[.9,.9]},
+      {p:[[.5,.6]], b:[.9,.9]},
+      {p:[[.5,.45]], b:[.9,.9]},
+      {p:[[.5,.3]], b:[.9,.9]},
+      {p:[[.5,.75]], b:[.9,.9]}
+    ]
+  },
+  {
+    name:"Miroir réactif", category:'motricity', level:'hard', age:"U11 à U13",
+    gear:[['cone',.35,.4],['cone',.65,.4],['cone',.35,.6],['cone',.65,.6]],
+    consignes:[
+      "2 joueurs face à face dans le carré.",
+      "Le meneur enchaîne des déplacements rapides (avant, arrière, côtés).",
+      "Le suiveur doit copier en miroir le plus vite possible.",
+      "Changer de rôle toutes les 30 secondes."
+    ],
+    variantes:"Ajouter des feintes • avec ballon en conduite • 3 joueurs en triangle.",
+    labels:['M','S'],
+    anim:[
+      {p:[[.42,.45],[.42,.58]], b:[.9,.9]},
+      {p:[[.58,.45],[.58,.58]], b:[.9,.9]},
+      {p:[[.5,.42],[.5,.55]], b:[.9,.9]},
+      {p:[[.38,.47],[.38,.6]], b:[.9,.9]},
+      {p:[[.5,.45],[.5,.58]], b:[.9,.9]}
+    ]
+  },
+  {
+    name:"Conduite tête haute", category:'control', level:'easy', age:"U7 à U11",
+    gear:[['zone',.5,.5,200,200]],
+    consignes:[
+      "Tous les joueurs conduisent leur ballon librement dans la zone.",
+      "Le coach lève des doigts : les joueurs annoncent le nombre à voix haute.",
+      "Oblige à conduire la tête haute sans regarder le ballon.",
+      "Toucher le ballon à chaque pas."
+    ],
+    variantes:"Changer de direction au signal • pied faible • stopper le ballon à l'annonce.",
+    labels:['J'],
+    anim:[
+      {p:[[.35,.6]], b:[.36,.62]},
+      {p:[[.5,.45]], b:[.51,.47]},
+      {p:[[.65,.55]], b:[.66,.57]},
+      {p:[[.55,.65]], b:[.56,.67]},
+      {p:[[.4,.5]], b:[.41,.52]}
+    ]
+  },
+  {
+    name:"Porte à porte", category:'control', level:'medium', age:"U9 à U13",
+    gear:[['cone',.25,.35],['cone',.35,.35],['cone',.65,.35],['cone',.75,.35],['cone',.25,.65],['cone',.35,.65],['cone',.65,.65],['cone',.75,.65]],
+    consignes:[
+      "4 portes de plots réparties dans la zone.",
+      "Franchir un maximum de portes différentes en conduite en 45 secondes.",
+      "Interdit de passer deux fois de suite par la même porte.",
+      "Compter ses portes : battre son record au tour suivant."
+    ],
+    variantes:"Pied faible uniquement • semelle obligatoire dans la porte • en duel à deux.",
+    labels:['J'],
+    anim:[
+      {p:[[.5,.5]], b:[.51,.52]},
+      {p:[[.3,.35]], b:[.31,.37]},
+      {p:[[.5,.5]], b:[.51,.52]},
+      {p:[[.7,.65]], b:[.71,.67]},
+      {p:[[.7,.35]], b:[.71,.37]}
+    ]
+  },
+  {
+    name:"1c1 dos au but", category:'control', level:'hard', age:"U11 à U13",
+    gear:[['minigoal',.5,.12],['cone',.4,.55],['cone',.6,.55]],
+    consignes:[
+      "L'attaquant reçoit dos au but, défenseur dans le dos.",
+      "Contrôle orienté pour éliminer et frapper.",
+      "Le défenseur ne peut pas tacler avant le contrôle.",
+      "5 ballons chacun puis on inverse."
+    ],
+    variantes:"Défenseur actif dès la passe • limite de 3 touches • partir côté opposé au contrôle.",
+    labels:['A','P'],
+    anim:[
+      {p:[[.5,.55],[.5,.85]], b:[.5,.82]},
+      {p:[[.5,.55],[.5,.85]], b:[.5,.57]},
+      {p:[[.62,.45],[.5,.85]], b:[.63,.47]},
+      {p:[[.58,.3],[.5,.85]], b:[.59,.32]},
+      {p:[[.58,.3],[.5,.85]], b:[.5,.13]}
+    ]
+  },
+  {
+    name:"Passes en triangle", category:'passing', level:'easy', age:"U7 à U11",
+    gear:[['cone',.3,.65],['cone',.7,.65],['cone',.5,.3]],
+    consignes:[
+      "3 joueurs, un à chaque plot, un seul ballon.",
+      "Passe à droite puis suivre son ballon (courir au plot suivant).",
+      "Contrôle orienté avant chaque passe.",
+      "Inverser le sens à mi-temps."
+    ],
+    variantes:"En une touche • deux ballons • agrandir le triangle.",
+    labels:['A','B','C'],
+    anim:[
+      {p:[[.3,.65],[.7,.65],[.5,.3]], b:[.32,.63]},
+      {p:[[.3,.65],[.7,.65],[.5,.3]], b:[.68,.63]},
+      {p:[[.5,.62],[.7,.65],[.5,.3]], b:[.52,.32]},
+      {p:[[.5,.62],[.7,.65],[.35,.4]], b:[.33,.62]},
+      {p:[[.5,.62],[.55,.5],[.35,.4]], b:[.5,.6]}
+    ]
+  },
+  {
+    name:"Passe et va (une-deux)", category:'passing', level:'medium', age:"U9 à U13",
+    gear:[['cone',.3,.7],['cone',.7,.5],['minigoal',.5,.12]],
+    consignes:[
+      "Le porteur donne au joueur relais et part en course.",
+      "Le relais remet en une touche dans la course.",
+      "Finir par une frappe au but.",
+      "Alterner les rôles à chaque passage."
+    ],
+    variantes:"Relais dos au but • deux relais successifs • limiter à 2 touches.",
+    labels:['P','R'],
+    anim:[
+      {p:[[.3,.7],[.7,.5]], b:[.32,.68]},
+      {p:[[.3,.7],[.7,.5]], b:[.68,.5]},
+      {p:[[.45,.4],[.7,.5]], b:[.68,.5]},
+      {p:[[.45,.4],[.7,.5]], b:[.47,.38]},
+      {p:[[.5,.25],[.7,.5]], b:[.52,.27]},
+      {p:[[.5,.25],[.7,.5]], b:[.5,.13]}
+    ]
+  },
+  {
+    name:"Rondo 4 contre 1", category:'passing', level:'hard', age:"U11 à U13",
+    gear:[['cone',.35,.35],['cone',.65,.35],['cone',.35,.65],['cone',.65,.65]],
+    consignes:[
+      "4 joueurs aux coins du carré, 1 chasseur au milieu.",
+      "Conserver le ballon en passes, maximum 2 touches.",
+      "Si le chasseur touche le ballon, il échange avec le passeur fautif.",
+      "Compter les séries de 10 passes."
+    ],
+    variantes:"Une touche seulement • carré plus petit • 2 chasseurs (5c2).",
+    labels:['A','B','C','D','X'],
+    anim:[
+      {p:[[.35,.35],[.65,.35],[.35,.65],[.65,.65],[.5,.5]], b:[.37,.37]},
+      {p:[[.35,.35],[.65,.35],[.35,.65],[.65,.65],[.55,.42]], b:[.63,.37]},
+      {p:[[.35,.35],[.65,.35],[.35,.65],[.65,.65],[.6,.5]], b:[.63,.63]},
+      {p:[[.35,.35],[.65,.35],[.35,.65],[.65,.65],[.5,.58]], b:[.37,.63]},
+      {p:[[.35,.35],[.65,.35],[.35,.65],[.65,.65],[.45,.5]], b:[.37,.37]}
+    ]
+  },
+  {
+    name:"Frappe après conduite", category:'shooting', level:'easy', age:"U7 à U11",
+    gear:[['minigoal',.5,.12],['cone',.5,.6],['cone',.5,.45]],
+    consignes:[
+      "Conduire le ballon du plot de départ jusqu'au plot de frappe.",
+      "Frapper du cou-de-pied avant la zone du gardien.",
+      "Récupérer son ballon et revenir par le côté.",
+      "Pied fort puis pied faible."
+    ],
+    variantes:"Frappe en première intention • plot de frappe plus loin • viser les coins.",
+    labels:['T'],
+    anim:[
+      {p:[[.5,.65]], b:[.51,.63]},
+      {p:[[.5,.5]], b:[.51,.48]},
+      {p:[[.5,.47]], b:[.51,.45]},
+      {p:[[.5,.47]], b:[.5,.13]}
+    ]
+  },
+  {
+    name:"Tir sous pression", category:'shooting', level:'medium', age:"U9 à U13",
+    gear:[['minigoal',.5,.12],['cone',.35,.55],['cone',.65,.55]],
+    consignes:[
+      "L'attaquant part d'un plot, le défenseur de l'autre.",
+      "Au signal, course pour le ballon placé au centre.",
+      "Le premier arrivé frappe, l'autre défend.",
+      "Frapper vite avant le retour du défenseur."
+    ],
+    variantes:"Départs assis ou couchés • ballon plus proche du défenseur • 2 ballons.",
+    labels:['A','D'],
+    anim:[
+      {p:[[.35,.55],[.65,.55]], b:[.5,.45]},
+      {p:[[.45,.48],[.58,.5]], b:[.5,.45]},
+      {p:[[.5,.45],[.55,.47]], b:[.51,.43]},
+      {p:[[.5,.35],[.53,.42]], b:[.51,.33]},
+      {p:[[.5,.35],[.53,.42]], b:[.5,.13]}
+    ]
+  },
+  {
+    name:"Volée et reprise", category:'shooting', level:'hard', age:"U11 à U13",
+    gear:[['minigoal',.5,.12],['cone',.3,.4],['cone',.7,.4]],
+    consignes:[
+      "Le passeur centre depuis le côté à mi-hauteur.",
+      "L'attaquant reprend de volée ou en demi-volée.",
+      "Travailler l'équilibre : bras écartés, regard sur le ballon.",
+      "5 centres de chaque côté puis rotation."
+    ],
+    variantes:"Centre au sol • reprise de la tête • contrôle poitrine puis volée.",
+    labels:['C','A'],
+    anim:[
+      {p:[[.3,.4],[.5,.35]], b:[.32,.4]},
+      {p:[[.3,.4],[.5,.35]], b:[.45,.33]},
+      {p:[[.3,.4],[.48,.33]], b:[.48,.31]},
+      {p:[[.3,.4],[.48,.33]], b:[.5,.13]}
+    ]
+  },
+  {
+    name:"Défense de la porte", category:'defense', level:'easy', age:"U7 à U11",
+    gear:[['cone',.4,.5],['cone',.6,.5]],
+    consignes:[
+      "Une porte de 2 plots au centre, un défenseur la garde.",
+      "L'attaquant essaie de franchir la porte en conduite.",
+      "Le défenseur cadre sans se jeter : petits pas, bras écartés.",
+      "Inverser les rôles après 5 passages."
+    ],
+    variantes:"Deux portes côte à côte • limiter le temps à 10 secondes • 2 contre 1.",
+    labels:['A','D'],
+    anim:[
+      {p:[[.5,.8],[.5,.45]], b:[.51,.78]},
+      {p:[[.45,.65],[.47,.48]], b:[.46,.63]},
+      {p:[[.55,.58],[.53,.5]], b:[.56,.56]},
+      {p:[[.48,.52],[.5,.49]], b:[.49,.5]}
+    ]
+  },
+  {
+    name:"Couverture à deux", category:'defense', level:'hard', age:"U11 à U13",
+    gear:[['minigoal',.5,.12],['zone',.5,.4,160,80]],
+    consignes:[
+      "2 défenseurs face à 2 attaquants devant le but.",
+      "Le défenseur côté ballon presse, l'autre couvre derrière.",
+      "Basculer les rôles à chaque passe adverse.",
+      "Communiquer : « je presse » / « je couvre »."
+    ],
+    variantes:"3c2 • zone plus large • interdire le tacle.",
+    labels:['A1','A2','D1','D2'],
+    anim:[
+      {p:[[.3,.6],[.7,.6],[.4,.42],[.55,.35]], b:[.32,.58]},
+      {p:[[.3,.6],[.7,.6],[.35,.5],[.5,.4]], b:[.68,.58]},
+      {p:[[.3,.6],[.7,.6],[.5,.42],[.62,.5]], b:[.68,.58]},
+      {p:[[.3,.6],[.7,.6],[.45,.4],[.58,.52]], b:[.32,.58]},
+      {p:[[.3,.6],[.7,.6],[.36,.5],[.5,.42]], b:[.32,.58]}
+    ]
+  },
+  {
+    name:"Attaque en surnombre 3c1", category:'attack', level:'easy', age:"U9 à U11",
+    gear:[['minigoal',.5,.12]],
+    consignes:[
+      "3 attaquants partent du milieu contre 1 défenseur.",
+      "Fixer le défenseur puis donner au joueur libre.",
+      "Maximum 8 secondes pour conclure.",
+      "Le défenseur sorti devient attaquant au tour suivant."
+    ],
+    variantes:"3c2 • limiter les touches • obligation de marquer en une touche.",
+    labels:['A1','A2','A3','D'],
+    anim:[
+      {p:[[.3,.7],[.5,.65],[.7,.7],[.5,.35]], b:[.5,.63]},
+      {p:[[.32,.55],[.5,.5],[.68,.55],[.5,.4]], b:[.5,.48]},
+      {p:[[.35,.4],[.52,.4],[.7,.4],[.52,.38]], b:[.68,.38]},
+      {p:[[.35,.4],[.52,.4],[.68,.28],[.55,.36]], b:[.69,.26]},
+      {p:[[.35,.4],[.52,.4],[.68,.28],[.55,.36]], b:[.52,.13]}
+    ]
+  },
+  {
+    name:"Centre et finition", category:'attack', level:'medium', age:"U9 à U13",
+    gear:[['minigoal',.5,.12],['cone',.85,.45],['cone',.4,.45],['cone',.6,.45]],
+    consignes:[
+      "L'ailier déborde sur le côté et centre.",
+      "2 attaquants attaquent le centre : premier poteau / deuxième poteau.",
+      "Ne jamais attaquer le même poteau à deux.",
+      "Tourner les rôles toutes les 3 actions."
+    ],
+    variantes:"Centre en retrait • ajouter un défenseur • centre au sol obligatoire.",
+    labels:['W','A1','A2'],
+    anim:[
+      {p:[[.85,.5],[.4,.5],[.6,.5]], b:[.85,.48]},
+      {p:[[.85,.32],[.42,.42],[.6,.45]], b:[.85,.3]},
+      {p:[[.85,.32],[.44,.28],[.58,.35]], b:[.85,.3]},
+      {p:[[.85,.32],[.44,.28],[.58,.35]], b:[.46,.27]},
+      {p:[[.85,.32],[.44,.28],[.58,.35]], b:[.5,.13]}
+    ]
+  },
+  {
+    name:"Jeu dans le dos", category:'attack', level:'hard', age:"U11 à U13",
+    gear:[['minigoal',.5,.12],['zone',.5,.3,300,60]],
+    consignes:[
+      "La zone matérialise la ligne défensive adverse.",
+      "Le porteur attend l'appel dans le dos pour donner en profondeur.",
+      "L'appel part au moment exact de la passe (hors-jeu fictif).",
+      "Finition obligatoire en 2 touches maximum."
+    ],
+    variantes:"Passe aérienne • 2 appels croisés • avec gardien.",
+    labels:['P','A'],
+    anim:[
+      {p:[[.5,.65],[.4,.38]], b:[.51,.63]},
+      {p:[[.5,.65],[.45,.36]], b:[.51,.63]},
+      {p:[[.5,.65],[.55,.25]], b:[.55,.24]},
+      {p:[[.5,.65],[.55,.2]], b:[.56,.19]},
+      {p:[[.5,.65],[.55,.2]], b:[.5,.13]}
+    ]
+  },
+  {
+    name:"Conservation 5c2", category:'team', level:'medium', age:"U11 à U13",
+    gear:[['zone',.5,.5,240,240]],
+    consignes:[
+      "5 joueurs en périphérie, 2 chasseurs au centre.",
+      "Objectif : 8 passes consécutives = 1 point.",
+      "Le joueur qui perd le ballon devient chasseur.",
+      "Bouger en permanence pour offrir des angles de passe."
+    ],
+    variantes:"2 touches max • passes au sol uniquement • réduire la zone.",
+    labels:['A','B','C','D','E','X','Y'],
+    anim:[
+      {p:[[.3,.3],[.7,.3],[.75,.6],[.5,.75],[.25,.6],[.45,.5],[.55,.45]], b:[.32,.32]},
+      {p:[[.3,.3],[.7,.3],[.75,.6],[.5,.75],[.25,.6],[.5,.4],[.6,.4]], b:[.68,.32]},
+      {p:[[.3,.3],[.7,.3],[.75,.6],[.5,.75],[.25,.6],[.6,.45],[.65,.5]], b:[.73,.58]},
+      {p:[[.3,.3],[.7,.3],[.75,.6],[.5,.75],[.25,.6],[.6,.6],[.55,.55]], b:[.5,.73]},
+      {p:[[.3,.3],[.7,.3],[.75,.6],[.5,.75],[.25,.6],[.45,.6],[.4,.55]], b:[.27,.58]}
+    ]
+  },
+  {
+    name:"Sortie de balle à 8", category:'team', level:'hard', age:"U11 à U13",
+    gear:[['zone',.5,.75,400,150]],
+    consignes:[
+      "Mise en place réelle : gardien + ligne de 3 + milieux.",
+      "Le gardien relance court, l'équipe ressort proprement de sa zone.",
+      "Interdiction de dégager long : que des passes au sol.",
+      "Travail des angles : les défenseurs s'écartent à la relance."
+    ],
+    variantes:"Ajouter 2 presseurs adverses • limiter les touches • relance côté opposé.",
+    labels:['G','DG','DC','DD','MC'],
+    colors:['var(--accent)'],
+    anim:[
+      {p:[[.5,.9],[.2,.75],[.5,.78],[.8,.75],[.5,.6]], b:[.5,.88]},
+      {p:[[.5,.9],[.18,.72],[.5,.78],[.8,.75],[.5,.6]], b:[.2,.73]},
+      {p:[[.5,.9],[.22,.65],[.45,.75],[.8,.75],[.45,.55]], b:[.23,.63]},
+      {p:[[.5,.9],[.25,.6],[.45,.75],[.8,.75],[.42,.52]], b:[.43,.53]},
+      {p:[[.5,.9],[.25,.6],[.45,.75],[.75,.68],[.42,.52]], b:[.74,.66]}
+    ]
+  },
+  {
+    name:"Réveil articulaire ludique", category:'warmup', level:'easy', age:"U7 à U9",
+    gear:[['zone',.5,.5,220,220]],
+    consignes:[
+      "Footing libre dans la zone avec consignes du coach :",
+      "« Genoux hauts ! », « Talons-fesses ! », « Pas chassés ! »",
+      "Au mot « Statue ! », tout le monde se fige en équilibre.",
+      "Terminer par 3 accélérations courtes."
+    ],
+    variantes:"Avec ballon à la main • imiter des animaux • en musique.",
+    labels:['J'],
+    anim:[
+      {p:[[.35,.6]], b:[.9,.9]},
+      {p:[[.5,.4]], b:[.9,.9]},
+      {p:[[.65,.55]], b:[.9,.9]},
+      {p:[[.5,.65]], b:[.9,.9]},
+      {p:[[.4,.45]], b:[.9,.9]}
+    ]
+  },
+  {
+    name:"Toro d'échauffement", category:'warmup', level:'medium', age:"U9 à U13",
+    gear:[['cone',.4,.4],['cone',.6,.4],['cone',.4,.6],['cone',.6,.6]],
+    consignes:[
+      "Petit carré, 4 joueurs autour, 1 au milieu.",
+      "Rythme tranquille : c'est un échauffement, pas un match.",
+      "2 touches obligatoires pour soigner le contrôle.",
+      "Changer le joueur du milieu toutes les minutes."
+    ],
+    variantes:"Une touche • passes piquées interdites • annoncer le prénom avant la passe.",
+    labels:['A','B','C','D','X'],
+    anim:[
+      {p:[[.4,.4],[.6,.4],[.4,.6],[.6,.6],[.5,.5]], b:[.41,.42]},
+      {p:[[.4,.4],[.6,.4],[.4,.6],[.6,.6],[.52,.45]], b:[.59,.42]},
+      {p:[[.4,.4],[.6,.4],[.4,.6],[.6,.6],[.55,.5]], b:[.59,.58]},
+      {p:[[.4,.4],[.6,.4],[.4,.6],[.6,.6],[.5,.55]], b:[.41,.58]},
+      {p:[[.4,.4],[.6,.4],[.4,.6],[.6,.6],[.45,.5]], b:[.41,.42]}
+    ]
+  },
 ];
 
 /* ============ Construction du modal entraînement ============ */
