@@ -817,7 +817,7 @@ function render(){
 
   // joueurs maison
   fr.players.forEach((p,i)=>{
-    const fs=p.label.length<=2?26:p.label.length<=3?20:p.label.length<=4?16:13;
+    const fs=p.label.length<=2?26:p.label.length<=3?21:p.label.length<=4?17:p.label.length<=5?14:p.label.length<=7?11:p.label.length<=9?9:8;
     svg+=`<g class="player marker home" data-pi="${i}" transform="translate(${p.x},${p.y})">
       <circle r="32" fill="${p.color||HOME}"/><text font-size="${fs}">${p.label}</text></g>`;
   });
@@ -1158,11 +1158,15 @@ document.getElementById('playBtn').onclick=()=>{
   let scoredGoal=false;
   const goalX=W*0.5, goalY=H*0.12;
 
-  /* --- Fonctions d'easing améliorées --- */
+  /* --- Easing --- */
   const easeOutQuart=k=>1-Math.pow(1-k,4);
   const easeOutExpo=k=>k===1?1:1-Math.pow(2,-10*k);
   const easeInOutQuint=k=>k<.5?16*k*k*k*k*k:1-Math.pow(-2*k+2,5)/2;
   const easeInOutSine=k=>-(Math.cos(Math.PI*k)-1)/2;
+  const easeOutBack=k=>{const c=1.70158;return 1+(c+1)*Math.pow(k-1,3)+c*Math.pow(k-1,2);};
+
+  // Effets persistants entre frames d'une même étape (impacts)
+  let impactFx=[]; // {x,y,t0,color}
 
   function go(){
     if(step>=frames.length-1){
@@ -1179,7 +1183,7 @@ document.getElementById('playBtn').onclick=()=>{
     if(action.type==='shot')playKick();
     if(action.type==='pass')setTimeout(playKick,30);
 
-    // Trouve le passeur (joueur le plus proche du ballon au départ) pour l'impulsion
+    // Passeur : joueur le plus proche du ballon au départ
     let kickerIdx=-1;
     if(action.type==='pass'||action.type==='shot'){
       let md=Infinity;
@@ -1189,52 +1193,68 @@ document.getElementById('playBtn').onclick=()=>{
       });
       if(md>70)kickerIdx=-1;
     }
+    // Receveur : joueur le plus proche du ballon à l'arrivée
+    let receiverIdx=-1;
+    if(action.type==='pass'||action.type==='receive'){
+      let md=Infinity;
+      b.players.forEach((p,i)=>{
+        const d=Math.hypot(b.ball.x-p.x,b.ball.y-p.y);
+        if(d<md){md=d;receiverIdx=i;}
+      });
+      if(md>80)receiverIdx=-1;
+    }
 
-    // Hauteur de la cloche du ballon (vol) selon l'action
     const flightDist=Math.hypot(b.ball.x-a.ball.x, b.ball.y-a.ball.y);
-    const ballArc=action.type==='shot'?Math.min(.5,flightDist/900)
-                 :action.type==='pass'?Math.min(.35,flightDist/1100)
+    const ballArc=action.type==='shot'?Math.min(.6,flightDist/800)
+                 :action.type==='pass'?Math.min(.45,flightDist/950)
                  :0;
 
-    // Trail du ballon : on garde les dernières positions
     const trail=[];
+    let impactDone=false;
 
-    // Décalages de départ des joueurs (stagger) pour un rendu plus organique
     const playerDelays=a.players.map((p,i)=>{
       const q=b.players[i]||p;
       const d=Math.hypot(q.x-p.x,q.y-p.y);
-      return d>20?(i%3)*0.04:0; // léger décalage selon l'index
+      return d>20?(i%4)*0.05:0;
     });
-    const awayDelays=(a.away||[]).map((p,i)=>((i%3)*0.05));
+    const awayDelays=(a.away||[]).map((p,i)=>((i%3)*0.06));
 
-    // Courbure des courses : perpendiculaire légère pour les longs déplacements
     function curvedPos(p,q,e,seed){
       const dx=q.x-p.x, dy=q.y-p.y;
       const dist=Math.hypot(dx,dy);
       const x=p.x+dx*e, y=p.y+dy*e;
-      if(dist<80)return{x,y};
-      // courbe en cloche : max au milieu du trajet
-      const bend=Math.sin(e*Math.PI)*Math.min(dist*0.08,26)*(seed%2===0?1:-1);
-      const nx=-dy/dist, ny=dx/dist; // normale
-      return {x:x+nx*bend, y:y+ny*bend};
+      if(dist<80)return{x,y,angle:0,speed:0};
+      const bend=Math.sin(e*Math.PI)*Math.min(dist*0.09,30)*(seed%2===0?1:-1);
+      const nx=-dy/dist, ny=dx/dist;
+      // Angle d'inclinaison dans le sens de la course (max ~8°)
+      const lean=Math.sin(e*Math.PI)*Math.min(dist/60,8)*(dx>=0?1:-1);
+      return {x:x+nx*bend, y:y+ny*bend, angle:lean, speed:dist};
     }
 
     const t0=performance.now();
     function rfr(now){
       let k=Math.min(1,(now-t0)/dur);
 
-      // Easing global selon le type d'action
       const eBall=action.type==='shot'?easeOutExpo(k)
                  :action.type==='pass'?easeOutQuart(k)
                  :easeInOutSine(k);
-      const ePlayers=dur<600?easeOutQuart(k):easeInOutQuint(k);
+
+      // Secousse de caméra sur les tirs (début de l'action)
+      let shakeX=0, shakeY=0;
+      if(action.type==='shot'&&k<0.18){
+        const s=(1-k/0.18)*7;
+        shakeX=(Math.random()-0.5)*s;
+        shakeY=(Math.random()-0.5)*s;
+      }
 
       let svg=pitchLines()+`<defs>
         <marker id="ah" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#fff"/></marker>
         <marker id="ahp" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ffd54f"/></marker>
         <marker id="ahs" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#f44336"/></marker>
-        <radialGradient id="ballShadow"><stop offset="0%" stop-color="#000" stop-opacity=".4"/><stop offset="100%" stop-color="#000" stop-opacity="0"/></radialGradient>
-      </defs>`;
+        <radialGradient id="ballShadow"><stop offset="0%" stop-color="#000" stop-opacity=".45"/><stop offset="100%" stop-color="#000" stop-opacity="0"/></radialGradient>
+        <radialGradient id="impactGrad"><stop offset="0%" stop-color="#fff" stop-opacity=".9"/><stop offset="100%" stop-color="#ffd54f" stop-opacity="0"/></radialGradient>
+      </defs>
+      <g transform="translate(${shakeX},${shakeY})">`;
 
       arrows.forEach(ar=>{
         const dash=ar.type==='run'?'stroke-dasharray="14 10"':ar.type==='pass'?'stroke-dasharray="2 12"':'';
@@ -1244,28 +1264,37 @@ document.getElementById('playBtn').onclick=()=>{
 
       gear.forEach((g,gi)=>{svg+=drawGear(g,gi);});
 
-      // Position du ballon avec interpolation
       const bx=a.ball.x+(b.ball.x-a.ball.x)*eBall;
       const by=a.ball.y+(b.ball.y-a.ball.y)*eBall;
 
-      // Trail lumineux du ballon pour les actions rapides
+      // Traînée du ballon longue et lumineuse
       if((action.type==='shot'||action.type==='pass') && k>0.02){
         trail.push({x:bx,y:by});
-        if(trail.length>9)trail.shift();
+        if(trail.length>14)trail.shift();
         trail.forEach((t,ti)=>{
-          const op=(ti/trail.length)*0.35;
-          const r=20*(0.4+0.6*ti/trail.length);
-          svg+=`<circle cx="${t.x}" cy="${t.y}" r="${r}" fill="${action.type==='shot'?'#f44336':'#ffd54f'}" opacity="${op}"/>`;
+          const op=(ti/trail.length)*0.5;
+          const r=20*(0.3+0.7*ti/trail.length);
+          svg+=`<circle cx="${t.x}" cy="${t.y}" r="${r}" fill="${action.type==='shot'?'#ff5252':'#ffd54f'}" opacity="${op}"/>`;
         });
       }
 
-      // Flèche dynamique d'action
+      // Flèche dynamique
       if(action.arrowColor && eBall>0.05){
         const opacity=k<0.85?0.7:0.7*(1-(k-0.85)/0.15);
         svg+=`<line x1="${a.ball.x}" y1="${a.ball.y}" x2="${bx}" y2="${by}" stroke="${action.arrowColor}" stroke-width="4" opacity="${opacity}" stroke-dasharray="${action.arrowDash}" marker-end="url(#${action.marker})"/>`;
       }
 
-      // Adversaires avec stagger
+      // Effets d'impact actifs (anneaux qui s'élargissent)
+      const nowMs=performance.now();
+      impactFx=impactFx.filter(fx=>nowMs-fx.t0<500);
+      impactFx.forEach(fx=>{
+        const fk=(nowMs-fx.t0)/500;
+        const r=20+fk*55;
+        const op=(1-fk)*0.8;
+        svg+=`<circle cx="${fx.x}" cy="${fx.y}" r="${r}" fill="none" stroke="${fx.color}" stroke-width="${4*(1-fk)+1}" opacity="${op}"/>`;
+      });
+
+      // Adversaires
       const aAway=a.away||[], bAway=b.away||[];
       aAway.forEach((p,i)=>{
         const q=bAway[i]||p;
@@ -1273,10 +1302,10 @@ document.getElementById('playBtn').onclick=()=>{
         const kk=Math.max(0,Math.min(1,(k-delay)/(1-delay)));
         const ee=easeInOutQuint(kk);
         const pos=curvedPos(p,q,ee,i);
-        svg+=`<g class="player" transform="translate(${pos.x},${pos.y})"><circle r="32" fill="${AWAY}" stroke="#000" stroke-width="2"/><text font-size="26" text-anchor="middle" dominant-baseline="central" fill="#fff" font-weight="bold">${p.label}</text></g>`;
+        svg+=`<g class="player" transform="translate(${pos.x},${pos.y}) rotate(${pos.angle})"><circle r="32" fill="${AWAY}" stroke="#000" stroke-width="2"/><text font-size="26" text-anchor="middle" dominant-baseline="central" fill="#fff" font-weight="bold">${p.label}</text></g>`;
       });
 
-      // Joueurs maison : stagger + courbes + impulsion du passeur
+      // Joueurs maison
       a.players.forEach((p,i)=>{
         const q=b.players[i]||p;
         const delay=playerDelays[i]||0;
@@ -1284,26 +1313,32 @@ document.getElementById('playBtn').onclick=()=>{
         const ee=dur<600?easeOutQuart(kk):easeInOutQuint(kk);
         const pos=curvedPos(p,q,ee,i);
         const col=p.color||HOME;
-        const fs=p.label.length<=2?26:p.label.length<=3?20:p.label.length<=4?16:13;
-        // Impulsion du passeur : pulse au début de l'action
-        let scale=1;
-        if(i===kickerIdx && k<0.25){
-          scale=1+Math.sin(k/0.25*Math.PI)*0.18;
+        const fs=p.label.length<=2?26:p.label.length<=3?21:p.label.length<=4?17:p.label.length<=5?14:p.label.length<=7?11:p.label.length<=9?9:8;
+        let scale=1, ring='';
+        // Impulsion + anneau lumineux du passeur
+        if(i===kickerIdx && k<0.3){
+          scale=1+Math.sin(k/0.3*Math.PI)*0.22;
+          const rk=k/0.3;
+          ring=`<circle r="${34+rk*26}" fill="none" stroke="#fff" stroke-width="${3*(1-rk)}" opacity="${(1-rk)*0.9}"/>`;
         }
-        svg+=`<g class="player" transform="translate(${pos.x},${pos.y}) scale(${scale})"><circle r="32" fill="${col}" stroke="#000" stroke-width="2"/><text font-size="${fs}" text-anchor="middle" dominant-baseline="central" fill="#fff" font-weight="bold">${p.label}</text></g>`;
+        // Le receveur "s'allume" quand le ballon approche
+        if(i===receiverIdx && k>0.6){
+          const rk=(k-0.6)/0.4;
+          ring+=`<circle r="${36+Math.sin(rk*Math.PI)*8}" fill="none" stroke="var(--accent)" stroke-width="3" opacity="${Math.sin(rk*Math.PI)*0.85}"/>`;
+        }
+        svg+=`<g class="player" transform="translate(${pos.x},${pos.y}) rotate(${pos.angle}) scale(${scale})">${ring}<circle r="32" fill="${col}" stroke="#000" stroke-width="2"/><text font-size="${fs}" text-anchor="middle" dominant-baseline="central" fill="#fff" font-weight="bold">${p.label}</text></g>`;
       });
 
-      // Ballon avec vol en cloche : ombre au sol + ballon qui "monte"
+      // Ballon : vol en cloche prononcé + rotation + ombre
       const flight=ballArc>0?Math.sin(eBall*Math.PI)*ballArc:0;
-      const ballScale=1+flight*0.55;             // le ballon grossit en hauteur
-      const shadowOffset=flight*46;              // l'ombre s'écarte
-      const shadowScale=1-flight*0.4;            // l'ombre rétrécit
+      const ballScale=1+flight*0.7;
+      const shadowOffset=flight*60;
+      const shadowScale=1-flight*0.45;
       if(ballArc>0&&flight>0.01){
-        svg+=`<ellipse cx="${bx}" cy="${by+shadowOffset*0.4+14}" rx="${18*shadowScale}" ry="${8*shadowScale}" fill="url(#ballShadow)"/>`;
+        svg+=`<ellipse cx="${bx}" cy="${by+shadowOffset*0.35+14}" rx="${18*shadowScale}" ry="${8*shadowScale}" fill="url(#ballShadow)"/>`;
       }
-      // Rotation du ballon pendant le vol
-      const spin=eBall*720*(flightDist/400);
-      svg+=`<g transform="translate(${bx},${by-shadowOffset*0.5}) scale(${ballScale}) rotate(${spin})">
+      const spin=eBall*900*(flightDist/400);
+      svg+=`<g transform="translate(${bx},${by-shadowOffset*0.55}) scale(${ballScale}) rotate(${spin})">
         <circle r="20" fill="#fff" stroke="#000" stroke-width="2"/>
         <path d="M-20,0 A20,20 0 0,1 20,0" fill="none" stroke="#0003" stroke-width="3"/>
         <circle cx="0" cy="-8" r="4" fill="#0002"/>
@@ -1311,7 +1346,14 @@ document.getElementById('playBtn').onclick=()=>{
         <circle cx="-7" cy="5" r="4" fill="#0002"/>
       </g>`;
 
+      svg+='</g>'; // fin du groupe shake
       pitch.innerHTML=svg;
+
+      // Impact à l'arrivée du ballon (anneau au sol)
+      if(!impactDone && k>0.92 && (action.type==='pass'||action.type==='shot'||action.type==='receive')){
+        impactDone=true;
+        impactFx.push({x:b.ball.x,y:b.ball.y,t0:performance.now(),color:action.type==='shot'?'#ff5252':'#ffd54f'});
+      }
 
       if(k<1)requestAnimationFrame(rfr);
       else{
@@ -1324,7 +1366,7 @@ document.getElementById('playBtn').onclick=()=>{
             showGoalEffect();
           }
         }
-        const pause=(action.type==='shot'||action.type==='pass'||action.type==='receive')?300:200;
+        const pause=(action.type==='shot'||action.type==='pass'||action.type==='receive')?320:220;
         setTimeout(go, pause/animSpeed);
       }
     }
@@ -1943,7 +1985,7 @@ function autoPlaceTeamOnField(){
     return {
       id:i,
       x:coords[0]*W, y:coords[1]*H,
-      label:name.length>5?name.substring(0,5):name,
+      label:name,
       color:x.slot==='G'?'var(--accent)':HOME,
       playerId:x.player.id,
       slot:x.slot
@@ -2047,7 +2089,7 @@ window.doSubstitution=function(benchIdx, fieldIdx){
   const oldPlayerId=fieldPlayer.playerId;
   const oldSlot=fieldPlayer.slot;
 
-  frames[0].players[fieldIdx].label=name.length>5?name.substring(0,5):name;
+  frames[0].players[fieldIdx].label=name;
   frames[0].players[fieldIdx].playerId=benchPlayer.id;
 
   // Le joueur sorti va au banc
@@ -2097,7 +2139,7 @@ function loadTeamFormation(){
       }
       return {
         id:i, x:saved.x*W, y:saved.y*H,
-        label:name.length>5?name.substring(0,5):name,
+        label:name,
         color:saved.color||HOME,
         playerId:playerId,
         slot:saved.slot||null
