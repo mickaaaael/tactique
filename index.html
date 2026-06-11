@@ -320,6 +320,28 @@
   body.light .frameBtn.active{color:#fff;}
   body.light .modal button{color:#fff;}
   body.light #fsToggle{background:rgba(255,255,255,.9);color:#1a2027;}
+
+  /* ---- Mode présentation (TV / vidéoprojecteur) ---- */
+  body.presentation button.tool{padding:14px 18px;font-size:17px;border-radius:14px;}
+  body.presentation button.tool .ico{font-size:24px;}
+  body.presentation button.tool .label{display:inline !important;}
+  body.presentation #toolbar{padding:12px 14px;gap:8px;}
+  body.presentation #toolbar .title{font-size:20px;display:inline !important;}
+  body.presentation #bottom{padding:12px 14px;gap:8px;}
+  body.presentation .frameBtn{min-width:52px;height:46px;font-size:20px;border-radius:12px;}
+  body.presentation .legend{font-size:16px;}
+  body.presentation .dot{width:18px;height:18px;}
+  body.presentation #animCaption{font-size:26px;padding:18px 30px;border-width:2px;}
+  body.presentation .captionStep{font-size:16px;}
+  body.presentation #bench{width:92px;}
+  body.presentation .bench-circle{width:58px;height:58px;font-size:15px;}
+  body.presentation .bench-name{font-size:11px;max-width:88px;}
+  body.presentation .bench-title{font-size:13px;}
+  body.presentation #teamSelect{font-size:16px !important;padding:12px 14px !important;padding-right:28px !important;}
+  body.presentation .toolPopup button.tool{font-size:17px;}
+  body.presentation .modal{width:520px;}
+  body.presentation .modal h3{font-size:22px;}
+  body.presentation .modal p{font-size:16px;}
 </style>
 </head>
 <body>
@@ -341,6 +363,7 @@
         <button class="tool" id="modeArrow"><span class="ico">➤</span><span class="label">Flèche</span></button>
         <button class="tool" id="modeRun"><span class="ico">⇢</span><span class="label">Course</span></button>
         <button class="tool" id="modePass"><span class="ico">⤳</span><span class="label">Passe</span></button>
+        <button class="tool" id="modeDraw"><span class="ico">✏️</span><span class="label">Crayon</span><span id="drawColorDot" style="width:10px;height:10px;border-radius:50%;background:#ffeb3b;display:inline-block;margin-left:4px;border:1px solid #fff5"></span></button>
         <button class="tool" id="modeErase"><span class="ico">🧽</span><span class="label">Gomme</span></button>
         <button class="tool" id="modeAway"><span class="ico">🔴</span><span class="label">Adversaire</span></button>
         <button class="tool" id="gearBtn"><span class="ico">🛒</span><span class="label">Matériel</span></button>
@@ -360,6 +383,7 @@
     <span class="sep"></span>
     <button class="tool" id="fsBtn"><span class="ico">⛶</span><span class="label">Plein écran</span></button>
     <button class="tool" id="themeBtn" title="Mode clair / sombre"><span class="ico">☀️</span><span class="label">Thème</span></button>
+    <button class="tool" id="presBtn" title="Mode présentation (TV / vidéoprojecteur)"><span class="ico">📺</span><span class="label">Présentation</span></button>
     <button class="tool" id="boardBtn"><span class="ico">🎨</span><span class="label">Style</span></button>
     <button class="tool" id="exportImgBtn"><span class="ico">📷</span><span class="label">Image</span></button>
     <span class="spacer"></span>
@@ -733,6 +757,8 @@ const wrap=document.getElementById('pitchWrap');
 let mode='move';
 let frames=[];        // chaque frame = {players:[{id,x,y}], ball:{x,y}}
 let arrows=[];        // flèches statiques {type,x1,y1,x2,y2,color}
+let sketches=[];      // tracés libres au crayon {points:[[x,y]...], color}
+let sketchColor='#ffeb3b'; // couleur du crayon (cycle au re-clic)
 let curFrame=0;
 let animating=false;
 
@@ -918,6 +944,12 @@ function render(){
     <marker id="ahp" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--accent)"/></marker>
   </defs>`;
 
+  // tracés libres au crayon (sous les flèches)
+  sketches.forEach((s,i)=>{
+    const d=s.points.map((pt,j)=>(j===0?'M':'L')+pt[0]+','+pt[1]).join(' ');
+    svg+=`<path class="sketchline" data-si="${i}" d="${d}" stroke="${s.color}" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" style="cursor:${mode==='erase'?'pointer':'default'}"/>`;
+  });
+
   // flèches
   arrows.forEach((a,i)=>{
     const dash=a.type==='run'?'stroke-dasharray="14 10"':a.type==='pass'?'stroke-dasharray="2 12" stroke-linecap="round"':'';
@@ -962,10 +994,16 @@ function toSvg(evt){
 }
 
 /* ============ Interactions ============ */
-let drag=null, drawing=null;
+let drag=null, drawing=null, sketching=null;
 
 function bindMarkers(){
   if(mode==='erase'){
+    pitch.querySelectorAll('.sketchline').forEach(l=>{
+      l.addEventListener('pointerdown',e=>{
+        e.stopPropagation();
+        sketches.splice(+l.dataset.si,1);render();
+      });
+    });
     pitch.querySelectorAll('.arrowline').forEach(l=>{
       l.addEventListener('pointerdown',e=>{
         e.stopPropagation();
@@ -1040,6 +1078,13 @@ pitch.addEventListener('pointermove',e=>{
   if(drag){
     const p=toSvg(e);drag.ref.x=p.x;drag.ref.y=p.y;
     drag.g.setAttribute('transform',`translate(${p.x},${p.y})`);
+  } else if(sketching){
+    const p=toSvg(e);
+    const last=sketching.points[sketching.points.length-1];
+    if(Math.hypot(p.x-last[0],p.y-last[1])>5){
+      sketching.points.push([p.x,p.y]);
+      sketching.path.setAttribute('d', sketching.points.map((pt,i)=>(i===0?'M':'L')+pt[0]+','+pt[1]).join(' '));
+    }
   } else if(drawing){
     const p=toSvg(e);drawing.line.setAttribute('x2',p.x);drawing.line.setAttribute('y2',p.y);
     drawing.x2=p.x;drawing.y2=p.y;
@@ -1048,6 +1093,12 @@ pitch.addEventListener('pointermove',e=>{
 window.addEventListener('pointerup',()=>{
   if(resizing){resizing=null;return;}
   if(drag){drag.g.style.cursor='grab';drag=null;}
+  if(sketching){
+    if(sketching.points.length>2){
+      sketches.push({points:sketching.points,color:sketchColor});
+    }
+    render();sketching=null;
+  }
   if(drawing){
     if(Math.hypot(drawing.x2-drawing.x1,drawing.y2-drawing.y1)>15){
       arrows.push({type:drawing.type,x1:drawing.x1,y1:drawing.y1,x2:drawing.x2,y2:drawing.y2});
@@ -1070,6 +1121,19 @@ pitch.addEventListener('pointerdown',e=>{
     render();
     return;
   }
+  if(mode==='draw'){
+    const p=toSvg(e);
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('stroke',sketchColor);
+    path.setAttribute('stroke-width','6');
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke-linecap','round');
+    path.setAttribute('stroke-linejoin','round');
+    path.setAttribute('d',`M${p.x},${p.y}`);
+    pitch.appendChild(path);
+    sketching={path,points:[[p.x,p.y]]};
+    return;
+  }
   if(mode==='arrow'||mode==='run'||mode==='pass'){
     const p=toSvg(e);
     const line=document.createElementNS('http://www.w3.org/2000/svg','line');
@@ -1086,7 +1150,7 @@ pitch.addEventListener('pointerdown',e=>{
 });
 
 /* ============ Modes ============ */
-const modeBtns={move:'modeMove',arrow:'modeArrow',run:'modeRun',pass:'modePass',erase:'modeErase',away:'modeAway'};
+const modeBtns={move:'modeMove',arrow:'modeArrow',run:'modeRun',pass:'modePass',erase:'modeErase',away:'modeAway',draw:'modeDraw'};
 function setMode(m){
   mode=m;
   Object.entries(modeBtns).forEach(([k,id])=>document.getElementById(id).classList.toggle('active',k===m));
@@ -1099,6 +1163,17 @@ document.getElementById('modeRun').onclick=()=>{gearType=null;setMode('run');};
 document.getElementById('modePass').onclick=()=>{gearType=null;setMode('pass');};
 document.getElementById('modeErase').onclick=()=>{gearType=null;setMode('erase');};
 document.getElementById('modeAway').onclick=()=>{gearType=null;setMode('away');};
+document.getElementById('modeDraw').onclick=()=>{
+  gearType=null;
+  if(mode==='draw'){
+    // Re-clic : cycle de couleurs jaune → rouge → blanc → cyan
+    const cols=['#ffeb3b','#ff5252','#ffffff','#4dd0e1'];
+    sketchColor=cols[(cols.indexOf(sketchColor)+1)%cols.length];
+    document.getElementById('drawColorDot').style.background=sketchColor;
+  } else {
+    setMode('draw');
+  }
+};
 
 /* ============ Menus déroulants groupés (Tactique / Séance) ============ */
 function setupToolGroup(btnId, popupId){
@@ -1676,6 +1751,24 @@ window.addEventListener('load',()=>{
     light=!light;
     localStorage.setItem(THEME_KEY,light?'light':'dark');
     applyTheme(light);
+  };
+})();
+
+/* ============ Mode présentation (TV) ============ */
+(function(){
+  const PRES_KEY='tactiqueFoot8_presentation';
+  const btn=document.getElementById('presBtn');
+  function applyPres(on){
+    document.body.classList.toggle('presentation',on);
+    btn.classList.toggle('active',on);
+    setTimeout(resize,60); // le terrain se réajuste à la nouvelle taille des barres
+  }
+  let on=localStorage.getItem(PRES_KEY)==='1';
+  setTimeout(()=>applyPres(on),60);
+  btn.onclick=()=>{
+    on=!on;
+    localStorage.setItem(PRES_KEY,on?'1':'0');
+    applyPres(on);
   };
 })();
 
@@ -4359,7 +4452,7 @@ document.getElementById('closeDrill').onclick=()=>document.getElementById('drill
 document.getElementById('clearBtn').onclick=()=>{
   if(!confirm('Vider complètement le terrain ?\n(joueurs, adversaires, matériel, flèches et étapes seront effacés)'))return;
   frames=[{players:[],away:[],ball:{x:W/2,y:H*0.5}}];
-  arrows=[];gear=[];curFrame=0;gearType=null;
+  arrows=[];gear=[];sketches=[];curFrame=0;gearType=null;
   setMode('move');renderFrameBar();render();
 };
 
