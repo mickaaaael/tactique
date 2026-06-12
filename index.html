@@ -315,6 +315,11 @@
     --grass-light:#56b15b;
   }
   body.light #stage{background:#dde3ea;}
+  body.light button.tool:hover{background:#d4dae2;border-color:#9aa5b1;}
+  body.light button.tool:active{background:#c5cdd8;}
+  body.light .toolPopup button.tool:hover{background:var(--accent);color:#fff;}
+  body.light .toolPopup button.tool:hover *{color:#fff;}
+  body.light .frameBtn:hover{background:#d4dae2;}
   body.light button.tool.active{color:#fff;}
   body.light button.tool.active *{color:#fff;}
   body.light .frameBtn.active{color:#fff;}
@@ -579,12 +584,26 @@
 <div class="modal-bg" id="trainModal">
   <div class="modal" style="width:420px;max-width:95vw">
     <h3>🏃 Exercices d'entraînement</h3>
-    <button class="tool" id="createDrillBtn" style="width:100%;justify-content:center;background:#2e7d32;margin-bottom:8px;padding:9px"><span class="ico">➕</span><span>Créer mon exercice</span></button>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button class="tool" id="createDrillBtn" style="flex:1;justify-content:center;background:#2e7d32;padding:9px"><span class="ico">➕</span><span>Créer</span></button>
+      <button class="tool" id="searchDrillBtn" style="flex:1;justify-content:center;background:#1565c0;padding:9px"><span class="ico">🔍</span><span>Rechercher</span></button>
+    </div>
     <div style="font-size:11px;opacity:.7;margin:-6px 0 6px">Filtre par catégorie et niveau :</div>
     <select id="catFilter" style="width:100%;padding:10px 12px;background:#1c2333;color:#fff;border:2px solid #30363d;border-radius:8px;font-size:14px;font-weight:bold;margin-bottom:6px;cursor:pointer;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"white\"><path d=\"M7 10l5 5 5-5z\"/></svg>');background-repeat:no-repeat;background-position:right 10px center;padding-right:32px"></select>
     <div id="lvlFilter" style="display:flex;gap:4px;margin-bottom:8px;"></div>
     <div id="drillList" style="max-height:320px;overflow-y:auto;margin-bottom:8px;"></div>
     <button id="closeTrain">Fermer</button>
+  </div>
+</div>
+
+<!-- Modale recherche d'exercices masqués -->
+<div class="modal-bg" id="searchDrillModal">
+  <div class="modal" style="width:420px;max-width:95vw">
+    <h3>🔍 Rechercher un exercice</h3>
+    <p style="font-size:12px;margin:-4px 0 8px;opacity:.8">Exercices retirés de ta liste. Touche ➕ pour les remettre.</p>
+    <input type="text" id="searchDrillInput" placeholder="Nom de l'exercice…" style="width:100%;padding:10px 12px;background:#0d1117;color:#fff;border:2px solid #30363d;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:8px">
+    <div id="searchDrillList" style="max-height:320px;overflow-y:auto;margin-bottom:8px;"></div>
+    <button id="closeSearchDrill">Fermer</button>
   </div>
 </div>
 
@@ -4147,11 +4166,27 @@ function buildLvlFilter(){
     lvlFilterEl.appendChild(b);
   });
 }
+/* ============ Exercices masqués (base personnalisable) ============ */
+const HIDDEN_DRILLS_KEY='tactiqueFoot8_hiddenDrills';
+function getHiddenDrills(){try{return JSON.parse(localStorage.getItem(HIDDEN_DRILLS_KEY))||[];}catch(e){return [];}}
+function saveHiddenDrills(arr){localStorage.setItem(HIDDEN_DRILLS_KEY,JSON.stringify(arr));cloudSetShared('hiddenDrills',arr);}
+function isHiddenDrill(d){return getHiddenDrills().includes(drillFavKey(d));}
+function hideDrill(d){
+  const h=getHiddenDrills();
+  const key=drillFavKey(d);
+  if(!h.includes(key)){h.push(key);saveHiddenDrills(h);}
+}
+function unhideDrill(d){
+  const h=getHiddenDrills().filter(k=>k!==drillFavKey(d));
+  saveHiddenDrills(h);
+}
+
 function renderDrillList(){
   drillList.innerHTML='';
   const all=getAllDrills();
   const filtered=all
     .map((d,i)=>({d,i}))
+    .filter(({d})=>!isHiddenDrill(d))
     .filter(({d})=>{
       if(activeCat==='favorites')return isFav(d) && (activeLvl==='all'||d.level===activeLvl);
       return (activeCat==='all'||d.category===activeCat)&&(activeLvl==='all'||d.level===activeLvl);
@@ -4177,7 +4212,6 @@ function renderDrillList(){
     groups[catKey].forEach(({d,i})=>{
       const lvl=LEVELS[d.level];
       const customMark=d.isCustom?'<span style="background:#ffd54f;color:#1a1a1a;padding:1px 5px;border-radius:6px;font-size:9px;font-weight:bold;margin-right:5px">⭐ PERSO</span>':'';
-      // Item cliquable (div au lieu de button pour pouvoir y inclure l'étoile cliquable)
       const b=document.createElement('div');
       b.className='tool';
       b.style.cssText='width:100%;margin-bottom:6px;text-align:left;flex-direction:column;align-items:flex-start;padding:10px;gap:3px;cursor:pointer;background:#1c2333;color:var(--txt);border-radius:8px;font-weight:bold;font-size:13px;display:flex;border:none';
@@ -4187,6 +4221,7 @@ function renderDrillList(){
           <span class="favStar" data-key="${drillFavKey(d).replace(/"/g,'&quot;')}" style="font-size:22px;cursor:pointer;padding:2px 4px;line-height:1;color:${fav?'#ffd54f':'#666'};flex-shrink:0">${fav?'★':'☆'}</span>
           ${customMark}<span style="font-size:14px;font-weight:bold;flex:1">${d.name}</span>
           <span style="font-size:10px;background:${lvl.color};color:#fff;padding:2px 7px;border-radius:10px;font-weight:bold">${lvl.label.replace(/^[🟢🟡🔴]\s*/,'')}</span>
+          <span class="hideDrillBtn" title="Retirer de ma liste" style="font-size:16px;cursor:pointer;padding:2px 4px;opacity:.55;flex-shrink:0">🗑</span>
         </div>
         <span style="font-size:11px;opacity:.7;font-weight:normal">${d.age}</span>`;
       // Clic sur le corps : applique l'exercice
@@ -4200,10 +4235,61 @@ function renderDrillList(){
         star.textContent=nowFav?'★':'☆';
         star.style.color=nowFav?'#ffd54f':'#666';
       });
+      // Clic sur la poubelle : masquer l'exercice (sans propagation)
+      b.querySelector('.hideDrillBtn').addEventListener('click',(e)=>{
+        e.stopPropagation();
+        hideDrill(d);
+        renderDrillList();
+      });
       drillList.appendChild(b);
     });
   });
 }
+
+/* ============ Recherche d'exercices masqués ============ */
+function renderSearchDrillList(){
+  const list=document.getElementById('searchDrillList');
+  const q=(document.getElementById('searchDrillInput').value||'').toLowerCase().trim();
+  const hidden=getAllDrills().map((d,i)=>({d,i})).filter(({d})=>isHiddenDrill(d));
+  const results=q?hidden.filter(({d})=>d.name.toLowerCase().includes(q)):hidden;
+  list.innerHTML='';
+  if(!hidden.length){
+    list.innerHTML='<p style="text-align:center;opacity:.6;font-size:13px;padding:14px">Aucun exercice retiré.<br>Tous les exercices sont dans ta liste ! 👍</p>';
+    return;
+  }
+  if(!results.length){
+    list.innerHTML='<p style="text-align:center;opacity:.6;font-size:13px;padding:14px">Aucun résultat pour « '+q+' »</p>';
+    return;
+  }
+  results.forEach(({d})=>{
+    const lvl=LEVELS[d.level];
+    const cat=CATEGORIES[d.category];
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:10px;background:#1c2333;border-radius:8px;margin-bottom:6px';
+    row.innerHTML=
+      `<span style="font-size:18px;flex-shrink:0">${cat?cat.icon:'⚽'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:bold;font-size:13px;color:var(--txt)">${d.name}</div>
+        <div style="font-size:10px;opacity:.6">${cat?cat.name:''} • ${d.age}</div>
+      </div>
+      <span style="font-size:10px;background:${lvl.color};color:#fff;padding:2px 7px;border-radius:10px;font-weight:bold;flex-shrink:0">${lvl.label.replace(/^[🟢🟡🔴]\s*/,'')}</span>
+      <button class="addBackBtn tool" style="background:#2e7d32;padding:7px 12px;font-size:15px;flex-shrink:0;border:none">➕</button>`;
+    row.querySelector('.addBackBtn').onclick=()=>{
+      unhideDrill(d);
+      renderSearchDrillList();
+      renderDrillList();
+    };
+    list.appendChild(row);
+  });
+}
+document.getElementById('searchDrillBtn').onclick=()=>{
+  document.getElementById('searchDrillInput').value='';
+  renderSearchDrillList();
+  document.getElementById('searchDrillModal').style.display='flex';
+  setTimeout(()=>document.getElementById('searchDrillInput').focus(),150);
+};
+document.getElementById('searchDrillInput').oninput=renderSearchDrillList;
+document.getElementById('closeSearchDrill').onclick=()=>document.getElementById('searchDrillModal').style.display='none';
 
 document.getElementById('trainBtn').onclick=()=>{
   buildCatFilter();buildLvlFilter();renderDrillList();
@@ -4550,6 +4636,7 @@ initTeamSelector();
 switchTeam();
 // Démarrage des écouteurs cloud (temps réel entre coachs)
 cloudListenShared('customDrills','tactiqueFoot8_customDrills',()=>{if(typeof renderDrillList==='function')renderDrillList();});
+cloudListenShared('hiddenDrills',HIDDEN_DRILLS_KEY,()=>{if(typeof renderDrillList==='function')renderDrillList();});
 cloudListenShared('saves','tactiqueFoot8_saves');
 cloudListenShared('sessions','tactiqueFoot8_sessions');
 cloudListenTeam();
